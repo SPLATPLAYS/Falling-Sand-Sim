@@ -103,9 +103,8 @@ inline bool canMoveTo(int x, int y, Particle type) {
   // Air can always be moved into
   if (target == Particle::AIR) return true;
   
-  // Water can displace each other and be displaced by heavier particles
+  // Sand can displace water
   if (type == Particle::SAND && target == Particle::WATER) return true;
-  if (type == Particle::WATER && target == Particle::WATER) return true;
   
   return false;
 }
@@ -138,31 +137,29 @@ void updateSand(int x, int y) {
 
 // Update water particle
 void updateWater(int x, int y) {
-  // Try to fall straight down
-  if (canMoveTo(x, y + 1, Particle::WATER)) {
+  // Try to fall straight down (only into empty space)
+  if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
     updated[y + 1][x] = true;
   }
-  // Try diagonal down-left
-  else if (canMoveTo(x - 1, y + 1, Particle::WATER)) {
+  // Try diagonal down-left (only into empty space)
+  else if (isEmpty(x - 1, y + 1)) {
     swap(x, y, x - 1, y + 1);
     updated[y + 1][x - 1] = true;
   }
-  // Try diagonal down-right
-  else if (canMoveTo(x + 1, y + 1, Particle::WATER)) {
+  // Try diagonal down-right (only into empty space)
+  else if (isEmpty(x + 1, y + 1)) {
     swap(x, y, x + 1, y + 1);
     updated[y + 1][x + 1] = true;
   }
-  // Try to flow sideways (left or right randomly)
-  else {
-    int dir = (rand() % 2) ? 1 : -1;
-    if (isEmpty(x + dir, y)) {
-      swap(x, y, x + dir, y);
-      updated[y][x + dir] = true;
-    } else if (isEmpty(x - dir, y)) {
-      swap(x, y, x - dir, y);
-      updated[y][x - dir] = true;
-    }
+  // Try to flow sideways - try both directions for faster spreading
+  else if (isEmpty(x - 1, y)) {
+    swap(x, y, x - 1, y);
+    updated[y][x - 1] = true;
+  }
+  else if (isEmpty(x + 1, y)) {
+    swap(x, y, x + 1, y);
+    updated[y][x + 1] = true;
   }
 }
 
