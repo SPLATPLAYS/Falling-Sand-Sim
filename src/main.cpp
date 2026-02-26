@@ -72,8 +72,11 @@ void initGrid() {
     }
   }
   
-  // Create bottom wall
+  // Create bottom wall above the UI (UI starts at Y=176 pixels = grid row 88)
+  // Create wall at row 87 to keep particles above UI
+  const int UI_BOUNDARY = (SCREEN_HEIGHT - 16) / PIXEL_SIZE;
   for (int x = 0; x < GRID_WIDTH; x++) {
+    grid[UI_BOUNDARY - 1][x] = Particle::WALL;
     grid[GRID_HEIGHT - 1][x] = Particle::WALL;
   }
   
@@ -235,10 +238,14 @@ void drawGrid(uint16_t* vram) {
   const int SWATCH_SPACING = 20;
   const int UI_START_X = 10;
   
-  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL};
+  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::AIR};
   
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 5; i++) {
     uint16_t color = getParticleColor(particles[i]);
+    // Use bright pink for AIR in UI so it's visible
+    if (particles[i] == Particle::AIR) {
+      color = 0xF81F; // Bright pink (magenta)
+    }
     int x = UI_START_X + i * SWATCH_SPACING;
     
     // Draw swatch
@@ -268,6 +275,28 @@ void drawGrid(uint16_t* vram) {
 void placeParticle(int gridX, int gridY) {
   if (!isValid(gridX, gridY)) return;
   
+  // Calculate UI boundary (UI starts at Y=176 pixels = grid row 88)
+  const int UI_BOUNDARY = (SCREEN_HEIGHT - 16) / PIXEL_SIZE;
+  
+  // Don't allow placing anything at or below the UI boundary
+  if (gridY >= UI_BOUNDARY) return;
+  
+  // If erasing (placing AIR), allow erasing anything except the UI boundary wall
+  if (selectedParticle == Particle::AIR) {
+    for (int dy = -BRUSH_SIZE/2; dy <= BRUSH_SIZE/2; dy++) {
+      for (int dx = -BRUSH_SIZE/2; dx <= BRUSH_SIZE/2; dx++) {
+        int x = gridX + dx;
+        int y = gridY + dy;
+        if (isValid(x, y) && y < UI_BOUNDARY) {
+          // Don't erase the UI boundary wall at row 87
+          if (y == UI_BOUNDARY - 1) continue;
+          grid[y][x] = Particle::AIR;
+        }
+      }
+    }
+    return;
+  }
+  
   // Don't overwrite walls unless placing wall
   if (grid[gridY][gridX] == Particle::WALL && selectedParticle != Particle::WALL) {
     return;
@@ -278,7 +307,7 @@ void placeParticle(int gridX, int gridY) {
     for (int dx = -BRUSH_SIZE/2; dx <= BRUSH_SIZE/2; dx++) {
       int x = gridX + dx;
       int y = gridY + dy;
-      if (isValid(x, y)) {
+      if (isValid(x, y) && y < UI_BOUNDARY) {
         // Skip walls unless placing wall
         if (grid[y][x] == Particle::WALL && selectedParticle != Particle::WALL) {
           continue;
@@ -301,21 +330,27 @@ bool handleInput() {
       int touchY = event.data.touch_single.p1_y;
       
       // Check if touching UI area (particle selector)
+      // Only treat as UI if touching the actual swatches
+      bool touchedUI = false;
       if (touchY >= SCREEN_HEIGHT - 16) {
         const int UI_START_X = 10;
+        const int SWATCH_SIZE = 16;
         const int SWATCH_SPACING = 20;
         
-        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL};
+        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::AIR};
         
-        for (int j = 0; j < 4; j++) {
+        for (int j = 0; j < 5; j++) {
           int x = UI_START_X + j * SWATCH_SPACING;
-          if (touchX >= x && touchX < x + 16) {
+          if (touchX >= x && touchX < x + SWATCH_SIZE && touchY >= SCREEN_HEIGHT - 16 && touchY < SCREEN_HEIGHT) {
             selectedParticle = particles[j];
+            touchedUI = true;
             break;
           }
         }
-      } else {
-        // Place particles on grid
+      }
+      
+      // Place particles on grid if not touching UI
+      if (!touchedUI) {
         int gridX = touchX / PIXEL_SIZE;
         int gridY = touchY / PIXEL_SIZE;
         placeParticle(gridX, gridY);
