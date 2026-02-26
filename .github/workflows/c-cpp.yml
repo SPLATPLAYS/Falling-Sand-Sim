@@ -1,0 +1,31 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "main", "ugfx" ]
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ "main", "ugfx" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:   
+  build-artifact:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/classpaddev/hollyhock-3:v2.2.1
+      credentials:
+       username: ${{ github.actor }}
+       password: ${{ secrets.github_token }}
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+    - run: make -j
+    - uses: actions/upload-artifact@v6
+      with:
+        path: dist/**
