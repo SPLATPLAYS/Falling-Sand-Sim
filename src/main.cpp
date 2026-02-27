@@ -61,6 +61,13 @@ constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways
 constexpr int PLANT_GROWTH_CHANCE = 10;    // 1 in 10 chance to grow per frame
 constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell for growth
 
+// Particle fall speeds (lower = faster, represents update frequency)
+// 1 = updates every frame, 2 = updates 50% of frames, 3 = updates 33% of frames, etc.
+constexpr int FALL_SPEED_STONE = 1;  // Heavy - falls fastest
+constexpr int FALL_SPEED_SAND = 2;   // Medium - normal fall speed
+constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
+constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
+
 // XorShift32 PRNG - fast and lightweight for embedded systems
 static uint32_t xorshift_state = 0x12345678;
 
@@ -83,6 +90,24 @@ Particle selectedParticle = Particle::SAND;
 // Actual LCD dimensions (set at runtime)
 int lcdWidth = SCREEN_WIDTH;
 int lcdHeight = SCREEN_HEIGHT;
+
+// Get fall speed for a particle type (lower = faster)
+inline int getFallSpeed(Particle p) {
+  switch (p) {
+    case Particle::STONE: return FALL_SPEED_STONE;
+    case Particle::SAND: return FALL_SPEED_SAND;
+    case Particle::WATER: return FALL_SPEED_WATER;
+    case Particle::LAVA: return FALL_SPEED_LAVA;
+    default: return 1; // Stationary particles, doesn't matter
+  }
+}
+
+// Check if a particle should update this frame based on its fall speed
+inline bool shouldUpdate(Particle p) {
+  int fallSpeed = getFallSpeed(p);
+  if (fallSpeed <= 1) return true;
+  return (xorshift32() % fallSpeed) == 0;
+}
 
 // Get color for particle type
 uint16_t getParticleColor(Particle p) {
@@ -334,6 +359,9 @@ void simulate() {
       if (updated[y][x]) continue;
       
       Particle p = grid[y][x];
+      
+      // Check if particle should update based on its density/fall speed
+      if (!shouldUpdate(p)) continue;
       
       switch (p) {
         case Particle::SAND:
