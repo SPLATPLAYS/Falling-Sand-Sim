@@ -61,6 +61,11 @@ constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways
 constexpr int PLANT_GROWTH_CHANCE = 10;    // 1 in 10 chance to grow per frame
 constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell for growth
 
+// FPS counter constants
+constexpr int FPS_SAMPLE_COUNT = 30;       // Average FPS over last 30 frames
+constexpr int FPS_DISPLAY_X = 300;         // X position for FPS display
+constexpr int FPS_DISPLAY_Y = 2;           // Y position for FPS display
+
 // Particle fall speeds (lower = faster, represents update frequency)
 // 1 = updates every frame, 2 = updates 50% of frames, 3 = updates 33% of frames, etc.
 constexpr int FALL_SPEED_STONE = 1;  // Heavy - falls fastest
@@ -90,6 +95,95 @@ Particle selectedParticle = Particle::SAND;
 // Actual LCD dimensions (set at runtime)
 int lcdWidth = SCREEN_WIDTH;
 int lcdHeight = SCREEN_HEIGHT;
+
+// FPS tracking
+static uint32_t frameTimes[FPS_SAMPLE_COUNT] = {0};
+static int frameIndex = 0;
+static uint32_t lastFrameTime = 0;
+static float currentFPS = 0.0f;
+
+// Simple cycle counter for timing (using clock())
+uint32_t getTickCount() {
+  return static_cast<uint32_t>(clock());
+}
+
+// Update FPS counter
+void updateFPS() {
+  uint32_t currentTime = getTickCount();
+  uint32_t delta = currentTime - lastFrameTime;
+  lastFrameTime = currentTime;
+  
+  // Store frame time
+  frameTimes[frameIndex] = delta;
+  frameIndex = (frameIndex + 1) % FPS_SAMPLE_COUNT;
+  
+  // Calculate average frame time
+  uint32_t totalTime = 0;
+  for (int i = 0; i < FPS_SAMPLE_COUNT; i++) {
+    totalTime += frameTimes[i];
+  }
+  
+  if (totalTime > 0) {
+    // FPS = (samples * CLOCKS_PER_SEC) / total_time
+    currentFPS = (static_cast<float>(FPS_SAMPLE_COUNT) * CLOCKS_PER_SEC) / totalTime;
+  }
+}
+
+// Draw a 5x7 digit to VRAM
+void drawDigit(uint16_t* vram, int x, int y, int digit, uint16_t color) {
+  // 5x7 font for digits 0-9
+  static const uint8_t font[10][7] = {
+    {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, // 0
+    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}, // 1
+    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F}, // 2
+    {0x0E, 0x11, 0x01, 0x0E, 0x01, 0x11, 0x0E}, // 3
+    {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02}, // 4
+    {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E}, // 5
+    {0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E}, // 6
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08}, // 7
+    {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E}, // 8
+    {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C}  // 9
+  };
+  
+  if (digit < 0 || digit > 9) return;
+  
+  for (int row = 0; row < 7; row++) {
+    uint8_t rowData = font[digit][row];
+    for (int col = 0; col < 5; col++) {
+      if (rowData & (1 << (4 - col))) {
+        int px = x + col;
+        int py = y + row;
+        if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight) {
+          vram[py * lcdWidth + px] = color;
+        }
+      }
+    }
+  }
+}
+
+// Draw FPS counter on screen
+void drawFPS(uint16_t* vram) {
+  int fps = static_cast<int>(currentFPS + 0.5f);
+  if (fps > 999) fps = 999;
+  
+  // Extract digits
+  int hundreds = fps / 100;
+  int tens = (fps / 10) % 10;
+  int ones = fps % 10;
+  
+  int x = FPS_DISPLAY_X;
+  
+  // Draw digits with spacing
+  if (hundreds > 0) {
+    drawDigit(vram, x, FPS_DISPLAY_Y, hundreds, COLOR_HIGHLIGHT);
+    x += 6;
+  }
+  if (hundreds > 0 || tens > 0) {
+    drawDigit(vram, x, FPS_DISPLAY_Y, tens, COLOR_HIGHLIGHT);
+    x += 6;
+  }
+  drawDigit(vram, x, FPS_DISPLAY_Y, ones, COLOR_HIGHLIGHT);
+}
 
 // Get fall speed for a particle type (lower = faster)
 inline int getFallSpeed(Particle p) {
@@ -448,6 +542,9 @@ void drawGrid(uint16_t* vram) {
       }
     }
   }
+  
+  // Draw FPS counter
+  drawFPS(vram);
 }
 
 // Place particles at position
@@ -567,10 +664,19 @@ int main(int argc, char **argv, char **envp) {
   lcdWidth = width;
   lcdHeight = height;
   
+  // Initialize FPS tracking
+  lastFrameTime = getTickCount();
+  for (int i = 0; i < FPS_SAMPLE_COUNT; i++) {
+    frameTimes[i] = CLOCKS_PER_SEC / 60; // Assume 60 FPS initially
+  }
+  
   // Main loop
   bool running = true;
   
   while (running) {
+    // Update FPS counter
+    updateFPS();
+    
     // Get VRAM directly - using direct VRAM access for speed
     uint16_t *vramPtr = (uint16_t*)LCD_GetVRAMAddress();
     
