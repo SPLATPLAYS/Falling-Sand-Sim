@@ -31,7 +31,8 @@ enum class Particle : uint8_t {
   WATER,
   STONE,
   WALL,
-  LAVA
+  LAVA,
+  PLANT
 };
 
 // Color definitions (RGB565 format)
@@ -41,6 +42,7 @@ constexpr uint16_t COLOR_WATER = 0x03BF;   // Blue
 constexpr uint16_t COLOR_STONE = 0x7BEF;   // Gray
 constexpr uint16_t COLOR_WALL = 0x4208;    // Dark gray
 constexpr uint16_t COLOR_LAVA = 0xF800;    // Bright red-orange
+constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
 
 // Brush size
 constexpr int BRUSH_SIZE = 3;
@@ -64,6 +66,7 @@ uint16_t getParticleColor(Particle p) {
     case Particle::STONE: return COLOR_STONE;
     case Particle::WALL: return COLOR_WALL;
     case Particle::LAVA: return COLOR_LAVA;
+    case Particle::PLANT: return COLOR_PLANT;
     default: return COLOR_AIR;
   }
 }
@@ -188,7 +191,7 @@ void updateStone(int x, int y) {
 // Update lava particle
 void updateLava(int x, int y) {
   // Check and convert adjacent particles
-  // Check all 8 neighbors for sand/water
+  // Check all 8 neighbors for sand/water/plant
   for (int dy = -1; dy <= 1; dy++) {
     for (int dx = -1; dx <= 1; dx++) {
       if (dx == 0 && dy == 0) continue;
@@ -199,6 +202,8 @@ void updateLava(int x, int y) {
           grid[ny][nx] = Particle::STONE;
         } else if (grid[ny][nx] == Particle::WATER) {
           grid[ny][nx] = Particle::AIR;
+        } else if (grid[ny][nx] == Particle::PLANT) {
+          grid[ny][nx] = Particle::AIR;  // Burn plant
         }
       }
     }
@@ -226,6 +231,58 @@ void updateLava(int x, int y) {
     if (isEmpty(x + dir, y)) {
       swap(x, y, x + dir, y);
       updated[y][x + dir] = true;
+    }
+  }
+}
+
+// Update plant particle
+void updatePlant(int x, int y) {
+  // Check for lava in adjacent cells - plant burns
+  for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+      if (dx == 0 && dy == 0) continue;
+      int nx = x + dx;
+      int ny = y + dy;
+      if (isValid(nx, ny) && grid[ny][nx] == Particle::LAVA) {
+        grid[y][x] = Particle::AIR;  // Burn plant
+        return;
+      }
+    }
+  }
+  
+  // Check for water in adjacent cells - plant grows
+  bool hasWater = false;
+  for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+      if (dx == 0 && dy == 0) continue;
+      int nx = x + dx;
+      int ny = y + dy;
+      if (isValid(nx, ny) && grid[ny][nx] == Particle::WATER) {
+        hasWater = true;
+        break;
+      }
+    }
+    if (hasWater) break;
+  }
+  
+  // If touching water, occasionally grow into adjacent empty spaces
+  if (hasWater && rand() % 10 == 0) {  // 10% chance per frame when touching water
+    // Try to grow in a random adjacent empty cell
+    int attempts = 0;
+    while (attempts < 4) {
+      int dx = (rand() % 3) - 1;  // -1, 0, or 1
+      int dy = (rand() % 3) - 1;
+      if (dx == 0 && dy == 0) {
+        attempts++;
+        continue;
+      }
+      int nx = x + dx;
+      int ny = y + dy;
+      if (isEmpty(nx, ny)) {
+        grid[ny][nx] = Particle::PLANT;
+        break;
+      }
+      attempts++;
     }
   }
 }
@@ -265,6 +322,9 @@ void simulate() {
         case Particle::LAVA:
           updateLava(x, y);
           break;
+        case Particle::PLANT:
+          updatePlant(x, y);
+          break;
         default:
           break;
       }
@@ -302,9 +362,9 @@ void drawGrid(uint16_t* vram) {
   const int SWATCH_SPACING = 20;
   const int UI_START_X = 10;
   
-  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::AIR};
+  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::AIR};
   
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 7; i++) {
     uint16_t color = getParticleColor(particles[i]);
     // Use bright pink for AIR in UI so it's visible
     if (particles[i] == Particle::AIR) {
@@ -406,9 +466,9 @@ bool handleInput() {
         const int SWATCH_SIZE = 16;
         const int SWATCH_SPACING = 20;
         
-        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::AIR};
+        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::AIR};
         
-        for (int j = 0; j < 6; j++) {
+        for (int j = 0; j < 7; j++) {
           int x = UI_START_X + j * SWATCH_SPACING;
           if (touchX >= x && touchX < x + SWATCH_SIZE && touchY >= SCREEN_HEIGHT - 16 && touchY < SCREEN_HEIGHT) {
             selectedParticle = particles[j];
