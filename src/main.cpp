@@ -43,9 +43,9 @@ constexpr uint16_t COLOR_WALL = 0x4208;    // Dark gray
 // Brush size
 constexpr int BRUSH_SIZE = 3;
 
-// Global grid
-Particle grid[GRID_HEIGHT][GRID_WIDTH];
-bool updated[GRID_HEIGHT][GRID_WIDTH]; // Track which cells were updated this frame
+// Global grid - aligned for better cache performance
+alignas(32) Particle grid[GRID_HEIGHT][GRID_WIDTH];
+alignas(32) bool updated[GRID_HEIGHT][GRID_WIDTH]; // Track which cells were updated this frame
 
 // Current selected particle
 Particle selectedParticle = Particle::SAND;
@@ -221,21 +221,26 @@ void simulate() {
   }
 }
 
-// Draw the grid to screen
+// Draw the grid to screen - optimized for faster VRAM writes
 void drawGrid(uint16_t* vram) {
+  // Optimized: write scanlines directly with proper bounds checking
+  // Each grid cell is PIXEL_SIZE x PIXEL_SIZE pixels
   for (int y = 0; y < GRID_HEIGHT; y++) {
+    int screenY = y * PIXEL_SIZE;
+    // Calculate base VRAM addresses for both scanlines of this grid row
+    uint16_t* scanline0 = vram + screenY * lcdWidth;
+    uint16_t* scanline1 = vram + (screenY + 1) * lcdWidth;
+    
     for (int x = 0; x < GRID_WIDTH; x++) {
       uint16_t color = getParticleColor(grid[y][x]);
       
-      // Draw PIXEL_SIZE x PIXEL_SIZE block
-      for (int dy = 0; dy < PIXEL_SIZE; dy++) {
-        for (int dx = 0; dx < PIXEL_SIZE; dx++) {
-          int screenX = x * PIXEL_SIZE + dx;
-          int screenY = y * PIXEL_SIZE + dy;
-          if (screenX < lcdWidth && screenY < lcdHeight) {
-            vram[screenY * lcdWidth + screenX] = color;
-          }
-        }
+      // Write 2x2 pixel block using direct pointer writes
+      int screenX = x * PIXEL_SIZE;
+      if (screenX + 1 < lcdWidth && screenY + 1 < lcdHeight) {
+        scanline0[screenX] = color;
+        scanline0[screenX + 1] = color;
+        scanline1[screenX] = color;
+        scanline1[screenX + 1] = color;
       }
     }
   }
@@ -256,24 +261,29 @@ void drawGrid(uint16_t* vram) {
     }
     int x = UI_START_X + i * SWATCH_SPACING;
     
-    // Draw swatch
+    // Draw swatch using scanline pointers for efficiency
     for (int dy = 0; dy < SWATCH_SIZE; dy++) {
+      uint16_t* scanline = vram + (UI_Y + dy) * lcdWidth + x;
+      // Write 16 pixels at once using pointer writes
       for (int dx = 0; dx < SWATCH_SIZE; dx++) {
-        vram[(UI_Y + dy) * lcdWidth + (x + dx)] = color;
+        scanline[dx] = color;
       }
     }
     
     // Highlight selected particle
     if (particles[i] == selectedParticle) {
       uint16_t highlight = 0xFFFF; // White
-      // Draw border
+      // Draw border using direct scanline writes
+      uint16_t* topBorder = vram + UI_Y * lcdWidth + x;
+      uint16_t* bottomBorder = vram + (UI_Y + SWATCH_SIZE - 1) * lcdWidth + x;
       for (int dx = 0; dx < SWATCH_SIZE; dx++) {
-        vram[UI_Y * lcdWidth + (x + dx)] = highlight;
-        vram[(UI_Y + SWATCH_SIZE - 1) * lcdWidth + (x + dx)] = highlight;
+        topBorder[dx] = highlight;
+        bottomBorder[dx] = highlight;
       }
       for (int dy = 0; dy < SWATCH_SIZE; dy++) {
-        vram[(UI_Y + dy) * lcdWidth + x] = highlight;
-        vram[(UI_Y + dy) * lcdWidth + (x + SWATCH_SIZE - 1)] = highlight;
+        uint16_t* scanline = vram + (UI_Y + dy) * lcdWidth;
+        scanline[x] = highlight;
+        scanline[x + SWATCH_SIZE - 1] = highlight;
       }
     }
   }
