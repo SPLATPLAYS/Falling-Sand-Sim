@@ -47,6 +47,18 @@ constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
 // Brush size
 constexpr int BRUSH_SIZE = 3;
 
+// XorShift32 PRNG - fast and lightweight for embedded systems
+static uint32_t xorshift_state = 0x12345678;
+
+inline uint32_t xorshift32() {
+  uint32_t x = xorshift_state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  xorshift_state = x;
+  return x;
+}
+
 // Global grid - aligned for better cache performance
 alignas(32) Particle grid[GRID_HEIGHT][GRID_WIDTH];
 alignas(32) bool updated[GRID_HEIGHT][GRID_WIDTH]; // Track which cells were updated this frame
@@ -165,7 +177,7 @@ void updateWater(int x, int y) {
   }
   // Try to flow sideways - randomize direction for balanced spreading
   else {
-    bool tryLeftFirst = (rand() % 2) == 0;
+    bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir1 = tryLeftFirst ? -1 : 1;
     int dir2 = tryLeftFirst ? 1 : -1;
     
@@ -225,8 +237,8 @@ void updateLava(int x, int y) {
     updated[y + 1][x + 1] = true;
   }
   // Occasionally flow sideways
-  else if (rand() % 3 == 0) {
-    bool tryLeftFirst = (rand() % 2) == 0;
+  else if (xorshift32() % 3 == 0) {
+    bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir = tryLeftFirst ? -1 : 1;
     if (isEmpty(x + dir, y)) {
       swap(x, y, x + dir, y);
@@ -266,12 +278,12 @@ void updatePlant(int x, int y) {
   }
   
   // If touching water, occasionally grow into adjacent empty spaces
-  if (hasWater && rand() % 10 == 0) {  // 10% chance per frame when touching water
+  if (hasWater && xorshift32() % 10 == 0) {  // 10% chance per frame when touching water
     // Try to grow in a random adjacent empty cell
     int attempts = 0;
     while (attempts < 4) {
-      int dx = (rand() % 3) - 1;  // -1, 0, or 1
-      int dy = (rand() % 3) - 1;
+      int dx = (xorshift32() % 3) - 1;  // -1, 0, or 1
+      int dy = (xorshift32() % 3) - 1;
       if (dx == 0 && dy == 0) {
         attempts++;
         continue;
@@ -510,8 +522,7 @@ int main(int argc, char **argv, char **envp) {
   (void)argv;
   (void)envp;
   
-  // Initialize random seed
-  srand(0x12345678);
+  // XorShift state is already initialized globally
   
   // Initialize grid
   initGrid();
