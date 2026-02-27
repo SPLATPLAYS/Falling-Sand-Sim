@@ -4,12 +4,13 @@ A cellular automaton falling sand simulator for the Casio Classpad calculator!
 
 ## Features
 
-- **Multiple particle types**: Sand, Water, Stone, and Wall
+- **Multiple particle types**: Sand, Water, Stone, Wall, and Lava
 - **Realistic physics**: Particles fall under gravity with different behaviors
   - Sand: Falls and settles in piles
   - Water: Falls and flows horizontally
   - Stone: Falls straight down
   - Wall: Static, used to build structures
+  - Lava: Flows like water, converts sand to stone and evaporates water
 - **Touch screen controls**: Draw particles directly on screen
 - **Interactive UI**: Select particle types from the bottom menu
 - **Performance optimized**: 192x96 simulation grid running in real-time
@@ -45,11 +46,11 @@ Copy `dist/CPapp.hh3` to the root of the calculator when connected in USB storag
 - Grid size: 192x96 cells
 - Display resolution: 384x192 pixels (2x2 pixel cells)
 - Update algorithm: Bottom-to-top scan with alternating horizontal direction
-- Particle interactions: Density-based displacement (sand displaces water)
+- Particle interactions: Density-based displacement (sand displaces water), lava converts sand to stone and evaporates water
 
 ## Future Enhancements
 
-- More particle types (oil, acid, lava, etc.)
+- More particle types (oil, acid, etc.)
 - Adjustable brush sizes
 - Save/load states
 - Color variations for particles
