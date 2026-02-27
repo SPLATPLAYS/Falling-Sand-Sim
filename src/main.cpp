@@ -157,14 +157,20 @@ void updateWater(int x, int y) {
     swap(x, y, x + 1, y + 1);
     updated[y + 1][x + 1] = true;
   }
-  // Try to flow sideways - try both directions for faster spreading
-  else if (isEmpty(x - 1, y)) {
-    swap(x, y, x - 1, y);
-    updated[y][x - 1] = true;
-  }
-  else if (isEmpty(x + 1, y)) {
-    swap(x, y, x + 1, y);
-    updated[y][x + 1] = true;
+  // Try to flow sideways - randomize direction for balanced spreading
+  else {
+    bool tryLeftFirst = (rand() % 2) == 0;
+    int dir1 = tryLeftFirst ? -1 : 1;
+    int dir2 = tryLeftFirst ? 1 : -1;
+    
+    if (isEmpty(x + dir1, y)) {
+      swap(x, y, x + dir1, y);
+      updated[y][x + dir1] = true;
+    }
+    else if (isEmpty(x + dir2, y)) {
+      swap(x, y, x + dir2, y);
+      updated[y][x + dir2] = true;
+    }
   }
 }
 
