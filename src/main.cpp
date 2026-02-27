@@ -30,7 +30,8 @@ enum class Particle : uint8_t {
   SAND,
   WATER,
   STONE,
-  WALL
+  WALL,
+  LAVA
 };
 
 // Color definitions (RGB565 format)
@@ -39,6 +40,7 @@ constexpr uint16_t COLOR_SAND = 0xFDA0;    // Sandy yellow
 constexpr uint16_t COLOR_WATER = 0x03BF;   // Blue
 constexpr uint16_t COLOR_STONE = 0x7BEF;   // Gray
 constexpr uint16_t COLOR_WALL = 0x4208;    // Dark gray
+constexpr uint16_t COLOR_LAVA = 0xF800;    // Bright red-orange
 
 // Brush size
 constexpr int BRUSH_SIZE = 3;
@@ -61,6 +63,7 @@ uint16_t getParticleColor(Particle p) {
     case Particle::WATER: return COLOR_WATER;
     case Particle::STONE: return COLOR_STONE;
     case Particle::WALL: return COLOR_WALL;
+    case Particle::LAVA: return COLOR_LAVA;
     default: return COLOR_AIR;
   }
 }
@@ -182,6 +185,51 @@ void updateStone(int x, int y) {
   }
 }
 
+// Update lava particle
+void updateLava(int x, int y) {
+  // Check and convert adjacent particles
+  // Check all 8 neighbors for sand/water
+  for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+      if (dx == 0 && dy == 0) continue;
+      int nx = x + dx;
+      int ny = y + dy;
+      if (isValid(nx, ny)) {
+        if (grid[ny][nx] == Particle::SAND) {
+          grid[ny][nx] = Particle::STONE;
+        } else if (grid[ny][nx] == Particle::WATER) {
+          grid[ny][nx] = Particle::AIR;
+        }
+      }
+    }
+  }
+  
+  // Lava flows like water but slower
+  if (isEmpty(x, y + 1)) {
+    swap(x, y, x, y + 1);
+    updated[y + 1][x] = true;
+  }
+  // Try diagonal down-left
+  else if (isEmpty(x - 1, y + 1)) {
+    swap(x, y, x - 1, y + 1);
+    updated[y + 1][x - 1] = true;
+  }
+  // Try diagonal down-right
+  else if (isEmpty(x + 1, y + 1)) {
+    swap(x, y, x + 1, y + 1);
+    updated[y + 1][x + 1] = true;
+  }
+  // Occasionally flow sideways
+  else if (rand() % 3 == 0) {
+    bool tryLeftFirst = (rand() % 2) == 0;
+    int dir = tryLeftFirst ? -1 : 1;
+    if (isEmpty(x + dir, y)) {
+      swap(x, y, x + dir, y);
+      updated[y][x + dir] = true;
+    }
+  }
+}
+
 // Simulate one step
 void simulate() {
   // Clear update flags
@@ -213,6 +261,9 @@ void simulate() {
           break;
         case Particle::STONE:
           updateStone(x, y);
+          break;
+        case Particle::LAVA:
+          updateLava(x, y);
           break;
         default:
           break;
@@ -251,9 +302,9 @@ void drawGrid(uint16_t* vram) {
   const int SWATCH_SPACING = 20;
   const int UI_START_X = 10;
   
-  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::AIR};
+  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::AIR};
   
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 6; i++) {
     uint16_t color = getParticleColor(particles[i]);
     // Use bright pink for AIR in UI so it's visible
     if (particles[i] == Particle::AIR) {
@@ -355,9 +406,9 @@ bool handleInput() {
         const int SWATCH_SIZE = 16;
         const int SWATCH_SPACING = 20;
         
-        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::AIR};
+        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::AIR};
         
-        for (int j = 0; j < 5; j++) {
+        for (int j = 0; j < 6; j++) {
           int x = UI_START_X + j * SWATCH_SPACING;
           if (touchX >= x && touchX < x + SWATCH_SIZE && touchY >= SCREEN_HEIGHT - 16 && touchY < SCREEN_HEIGHT) {
             selectedParticle = particles[j];
