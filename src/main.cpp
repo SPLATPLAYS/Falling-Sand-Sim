@@ -43,9 +43,23 @@ constexpr uint16_t COLOR_STONE = 0x7BEF;   // Gray
 constexpr uint16_t COLOR_WALL = 0x4208;    // Dark gray
 constexpr uint16_t COLOR_LAVA = 0xF800;    // Bright red-orange
 constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
+constexpr uint16_t COLOR_UI_AIR = 0xF81F;  // Bright pink (magenta) for UI display
+constexpr uint16_t COLOR_HIGHLIGHT = 0xFFFF; // White
 
 // Brush size
 constexpr int BRUSH_SIZE = 3;
+
+// UI constants
+constexpr int UI_HEIGHT = 16;
+constexpr int SWATCH_SIZE = 16;
+constexpr int SWATCH_SPACING = 20;
+constexpr int UI_START_X = 10;
+constexpr int PARTICLE_TYPE_COUNT = 7;
+
+// Simulation probabilities and limits
+constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways
+constexpr int PLANT_GROWTH_CHANCE = 10;    // 1 in 10 chance to grow per frame
+constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell for growth
 
 // XorShift32 PRNG - fast and lightweight for embedded systems
 static uint32_t xorshift_state = 0x12345678;
@@ -94,7 +108,7 @@ void initGrid() {
   
   // Create bottom wall above the UI (UI starts at Y=176 pixels = grid row 88)
   // Create wall at row 87 to keep particles above UI
-  const int UI_BOUNDARY = (SCREEN_HEIGHT - 16) / PIXEL_SIZE;
+  const int UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
   for (int x = 0; x < GRID_WIDTH; x++) {
     grid[UI_BOUNDARY - 1][x] = Particle::WALL;
     grid[GRID_HEIGHT - 1][x] = Particle::WALL;
@@ -237,7 +251,7 @@ void updateLava(int x, int y) {
     updated[y + 1][x + 1] = true;
   }
   // Occasionally flow sideways
-  else if (xorshift32() % 3 == 0) {
+  else if (xorshift32() % LAVA_FLOW_CHANCE == 0) {
     bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir = tryLeftFirst ? -1 : 1;
     if (isEmpty(x + dir, y)) {
@@ -278,10 +292,10 @@ void updatePlant(int x, int y) {
   }
   
   // If touching water, occasionally grow into adjacent empty spaces
-  if (hasWater && xorshift32() % 10 == 0) {  // 10% chance per frame when touching water
+  if (hasWater && xorshift32() % PLANT_GROWTH_CHANCE == 0) {
     // Try to grow in a random adjacent empty cell
     int attempts = 0;
-    while (attempts < 4) {
+    while (attempts < PLANT_GROWTH_ATTEMPTS) {
       int dx = (xorshift32() % 3) - 1;  // -1, 0, or 1
       int dy = (xorshift32() % 3) - 1;
       if (dx == 0 && dy == 0) {
@@ -369,18 +383,15 @@ void drawGrid(uint16_t* vram) {
   }
   
   // Draw UI - particle selector at bottom
-  const int UI_Y = SCREEN_HEIGHT - 16;
-  const int SWATCH_SIZE = 16;
-  const int SWATCH_SPACING = 20;
-  const int UI_START_X = 10;
+  const int UI_Y = SCREEN_HEIGHT - UI_HEIGHT;
   
   Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::AIR};
   
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PARTICLE_TYPE_COUNT; i++) {
     uint16_t color = getParticleColor(particles[i]);
     // Use bright pink for AIR in UI so it's visible
     if (particles[i] == Particle::AIR) {
-      color = 0xF81F; // Bright pink (magenta)
+      color = COLOR_UI_AIR;
     }
     int x = UI_START_X + i * SWATCH_SPACING;
     
@@ -395,18 +406,17 @@ void drawGrid(uint16_t* vram) {
     
     // Highlight selected particle
     if (particles[i] == selectedParticle) {
-      uint16_t highlight = 0xFFFF; // White
       // Draw border using direct scanline writes
       uint16_t* topBorder = vram + UI_Y * lcdWidth + x;
       uint16_t* bottomBorder = vram + (UI_Y + SWATCH_SIZE - 1) * lcdWidth + x;
       for (int dx = 0; dx < SWATCH_SIZE; dx++) {
-        topBorder[dx] = highlight;
-        bottomBorder[dx] = highlight;
+        topBorder[dx] = COLOR_HIGHLIGHT;
+        bottomBorder[dx] = COLOR_HIGHLIGHT;
       }
       for (int dy = 0; dy < SWATCH_SIZE; dy++) {
         uint16_t* scanline = vram + (UI_Y + dy) * lcdWidth;
-        scanline[x] = highlight;
-        scanline[x + SWATCH_SIZE - 1] = highlight;
+        scanline[x] = COLOR_HIGHLIGHT;
+        scanline[x + SWATCH_SIZE - 1] = COLOR_HIGHLIGHT;
       }
     }
   }
@@ -417,7 +427,7 @@ void placeParticle(int gridX, int gridY) {
   if (!isValid(gridX, gridY)) return;
   
   // Calculate UI boundary (UI starts at Y=176 pixels = grid row 88)
-  const int UI_BOUNDARY = (SCREEN_HEIGHT - 16) / PIXEL_SIZE;
+  const int UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
   
   // Don't allow placing anything at or below the UI boundary
   if (gridY >= UI_BOUNDARY) return;
@@ -473,16 +483,12 @@ bool handleInput() {
       // Check if touching UI area (particle selector)
       // Only treat as UI if touching the actual swatches
       bool touchedUI = false;
-      if (touchY >= SCREEN_HEIGHT - 16) {
-        const int UI_START_X = 10;
-        const int SWATCH_SIZE = 16;
-        const int SWATCH_SPACING = 20;
-        
+      if (touchY >= SCREEN_HEIGHT - UI_HEIGHT) {
         Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::AIR};
         
-        for (int j = 0; j < 7; j++) {
+        for (int j = 0; j < PARTICLE_TYPE_COUNT; j++) {
           int x = UI_START_X + j * SWATCH_SPACING;
-          if (touchX >= x && touchX < x + SWATCH_SIZE && touchY >= SCREEN_HEIGHT - 16 && touchY < SCREEN_HEIGHT) {
+          if (touchX >= x && touchX < x + SWATCH_SIZE && touchY >= SCREEN_HEIGHT - UI_HEIGHT && touchY < SCREEN_HEIGHT) {
             selectedParticle = particles[j];
             touchedUI = true;
             break;
