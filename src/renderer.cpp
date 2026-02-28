@@ -3,7 +3,7 @@
 #include "particle.h"
 #include "grid.h"
 #include "input.h"
-#include <ctime>
+#include <sys/time.h>
 #include <cstring>
 
 // Actual LCD dimensions (set at runtime)
@@ -18,9 +18,16 @@ static float currentFPS = 0.0f;
 
 // External reference to selected particle (from input.cpp) - now via input.h
 
-// Simple cycle counter for timing (using clock())
-static uint32_t getTickCount() {
-  return static_cast<uint32_t>(clock());
+// Return current time in microseconds.
+// gettimeofday() is backed by TMU2 at Phi/16 on the SH7305, giving
+// sub-microsecond resolution — far more precise than clock().
+static uint32_t getMicros() {
+  struct timeval tv;
+  gettimeofday(&tv, nullptr);
+  // Cast seconds to uint32_t before multiplying to avoid 32-bit overflow
+  // (tv_sec wraps every ~4295 s ≈ 71 min, which is fine for delta timing).
+  return static_cast<uint32_t>(tv.tv_sec) * 1000000u
+       + static_cast<uint32_t>(tv.tv_usec);
 }
 
 // Initialize renderer with LCD dimensions
@@ -29,32 +36,34 @@ void initRenderer(int width, int height) {
   lcdHeight = height;
   
   // Initialize FPS tracking
-  lastFrameTime = getTickCount();
+  lastFrameTime = getMicros();
   for (int i = 0; i < FPS_SAMPLE_COUNT; i++) {
-    frameTimes[i] = CLOCKS_PER_SEC / 60; // Assume 60 FPS initially
+    frameTimes[i] = 1000000u / 60u; // Assume 60 FPS initially (~16667 µs)
   }
 }
 
 // Update FPS counter
 void updateFPS() {
-  uint32_t currentTime = getTickCount();
+  uint32_t currentTime = getMicros();
   uint32_t delta = currentTime - lastFrameTime;
   lastFrameTime = currentTime;
-  
-  // Store frame time
+
+  // Guard against zero delta (back-to-back calls within the same microsecond)
+  if (delta == 0u) delta = 1u;
+
+  // Store frame time (µs)
   frameTimes[frameIndex] = delta;
   frameIndex = (frameIndex + 1) % FPS_SAMPLE_COUNT;
-  
-  // Calculate average frame time
-  uint32_t totalTime = 0;
+
+  // Average frame time over the sample window
+  uint32_t totalTime = 0u;
   for (int i = 0; i < FPS_SAMPLE_COUNT; i++) {
     totalTime += frameTimes[i];
   }
-  
-  if (totalTime > 0) {
-    // FPS = (samples * CLOCKS_PER_SEC) / total_time
-    currentFPS = (static_cast<float>(FPS_SAMPLE_COUNT) * CLOCKS_PER_SEC) / totalTime;
-  }
+
+  // FPS = (samples × 1,000,000 µs/s) / total_µs
+  currentFPS = (static_cast<float>(FPS_SAMPLE_COUNT) * 1000000.0f)
+             / static_cast<float>(totalTime);
 }
 
 // Draw a 5x7 digit to VRAM

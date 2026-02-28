@@ -49,7 +49,10 @@ int main(int argc, char **argv, char **envp) {
   while (running) {
     // Simulate physics every frame (always run, regardless of frame skip)
     simulate();
-    
+
+    // Track physics FPS every frame
+    updateFPS();
+
     // Determine if we should render this frame
     bool shouldRender = true;
     if (FRAME_SKIP_ENABLED && FRAME_SKIP_AMOUNT > 0) {
@@ -57,8 +60,6 @@ int main(int argc, char **argv, char **envp) {
     }
     
     if (shouldRender) {
-      // Update FPS counter only on rendered frames
-      updateFPS();
       
       // Get VRAM directly - using direct VRAM access for speed
       uint16_t *vramPtr = (uint16_t*)LCD_GetVRAMAddress();
