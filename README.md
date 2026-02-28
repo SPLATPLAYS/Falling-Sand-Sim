@@ -14,6 +14,7 @@ A cellular automaton falling sand simulator for the Casio Classpad calculator!
   - Plant: Static, grows when touching water, burns when touching lava
 - **Touch screen controls**: Draw particles directly on screen
 - **Interactive UI**: Select particle types from the bottom menu
+- **Frame skipping**: Optional performance optimization for smoother physics
 - **Performance optimized**: 192x96 simulation grid running in real-time
 
 ## Controls
@@ -48,6 +49,26 @@ Copy `dist/CPapp.hh3` to the root of the calculator when connected in USB storag
 - Display resolution: 384x192 pixels (2x2 pixel cells)
 - Update algorithm: Bottom-to-top scan with alternating horizontal direction
 - Particle interactions: Density-based displacement (sand displaces water), lava converts sand to stone and evaporates water
+
+### Performance Optimization: Frame Skipping
+
+Frame skipping allows the physics simulation to run at full speed while reducing rendering overhead. This can significantly improve performance on the calculator.
+
+**How to enable:**
+1. Open `src/config.h`
+2. Set `FRAME_SKIP_ENABLED` to `true`
+3. Adjust `FRAME_SKIP_AMOUNT`:
+   - `0` = No skipping (60 FPS target, default)
+   - `1` = Skip 1 frame (30 FPS rendering, 60 FPS physics)
+   - `2` = Skip 2 frames (20 FPS rendering, 60 FPS physics)
+   - `3` = Skip 3 frames (15 FPS rendering, 60 FPS physics)
+
+**Benefits:**
+- Physics simulation continues at full speed regardless of rendering
+- Input handling remains responsive every frame
+- Useful for complex simulations with many particles
+
+**Note:** The FPS counter shows *rendered* frames per second, not physics updates.
 
 ## Future Enhancements
 

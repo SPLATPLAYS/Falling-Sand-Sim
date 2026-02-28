@@ -40,28 +40,39 @@ int main(int argc, char **argv, char **envp) {
   
   // Main loop
   bool running = true;
+  uint32_t frameCount = 0;
   
   while (running) {
-    // Update FPS counter
-    updateFPS();
-    
-    // Get VRAM directly - using direct VRAM access for speed
-    uint16_t *vramPtr = (uint16_t*)LCD_GetVRAMAddress();
-    
-    // Simulate physics every frame
+    // Simulate physics every frame (always run, regardless of frame skip)
     simulate();
     
-    // Draw to VRAM
-    drawGrid(vramPtr);
+    // Determine if we should render this frame
+    bool shouldRender = true;
+    if (FRAME_SKIP_ENABLED && FRAME_SKIP_AMOUNT > 0) {
+      shouldRender = (frameCount % (FRAME_SKIP_AMOUNT + 1)) == 0;
+    }
     
-    // Handle input and check for exit
+    if (shouldRender) {
+      // Update FPS counter only on rendered frames
+      updateFPS();
+      
+      // Get VRAM directly - using direct VRAM access for speed
+      uint16_t *vramPtr = (uint16_t*)LCD_GetVRAMAddress();
+      
+      // Draw to VRAM
+      drawGrid(vramPtr);
+      
+      // Refresh display to push VRAM contents to LCD
+      // This call blocks until the display is refreshed, providing natural frame pacing
+      LCD_Refresh();
+    }
+    
+    // Handle input every frame (even if not rendering)
     if (handleInput()) {
       running = false;
     }
     
-    // Refresh display to push VRAM contents to LCD
-    // This call blocks until the display is refreshed, providing natural frame pacing
-    LCD_Refresh();
+    frameCount++;
   }
   
   return 0;

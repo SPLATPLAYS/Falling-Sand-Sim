@@ -44,6 +44,10 @@ constexpr int SWATCH_SPACING = 20;
 constexpr int UI_START_X = 10;
 constexpr int PARTICLE_TYPE_COUNT = 7;
 
+// Frame skipping for performance
+constexpr int FRAME_SKIP_AMOUNT = 0;       // 0 = no skip, 1 = skip 1 frame (30fps), 2 = skip 2 frames (20fps), etc.
+constexpr bool FRAME_SKIP_ENABLED = false; // Set to true to enable frame skipping
+
 // Simulation probabilities and limits
 constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways
 constexpr int PLANT_GROWTH_CHANCE = 10;    // 1 in 10 chance to grow per frame
@@ -53,6 +57,9 @@ constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell fo
 constexpr int FPS_SAMPLE_COUNT = 30;       // Average FPS over last 30 frames
 constexpr int FPS_DISPLAY_X = 300;         // X position for FPS display
 constexpr int FPS_DISPLAY_Y = 2;           // Y position for FPS display
+
+// Note: When frame skipping is enabled, the displayed FPS represents rendered frames per second,
+// not total simulation updates. Physics continues to update at full speed.
 
 // Particle fall speeds (lower = faster, represents update frequency)
 // 1 = updates every frame, 2 = updates 50% of frames, 3 = updates 33% of frames, etc.
