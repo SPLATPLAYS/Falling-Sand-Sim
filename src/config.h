@@ -109,6 +109,22 @@ constexpr uint8_t TEMP_COLD = 20;         // Cold temperature
 constexpr uint8_t TEMP_HOT = 200;         // Hot temperature
 constexpr uint8_t TEMP_LAVA = 255;        // Maximum temperature (lava)
 
+// Coarse-tile cooling rates (used in propagateTemperature Step 2)
+// Water-occupied tiles cool by TEMP_WATER_COOL_RATE per tick toward TEMP_COLD.
+constexpr int TEMP_WATER_COOL_RATE   = 3;
+// Air-exposed tiles (any AIR cell in the coarse tile) drift toward TEMP_AMBIENT
+// by 1 every tick.  Buried tiles (no AIR) drift at 1-in-16 rate.
+constexpr uint32_t TEMP_BURIED_COOL_MASK = 0xFu;  // 1 in 16 chance
+
+// Lava <-> stone conversion temperature thresholds
+// Lava that is isolated (no adjacent lava) and whose coarse tile drops below
+// TEMP_LAVA_SOLIDIFY will slowly solidify into stone.
+constexpr uint8_t TEMP_LAVA_SOLIDIFY = 110;
+// Stone whose coarse tile exceeds TEMP_STONE_MELT (requires being surrounded
+// by multiple lava cells for the diffused temperature to reach this level)
+// will slowly melt back into lava.
+constexpr uint8_t TEMP_STONE_MELT    = 230;
+
 // Number of diffusion passes per physics tick.
 // Each pass spreads heat one coarse cell further (one coarse cell = 4 fine cells).
 // Higher = faster, more visible spread; lower = cheaper.

@@ -26,26 +26,20 @@ static void propagateTemperature() {
   // Weights: self×4 + each present neighbour×1, then >>3 (÷8).
   // Ambient drift runs only on the final pass to avoid over-cooling during
   // the intermediate passes.
+  // Pure diffusion — no ambient drift here; cooling is applied per‑tile
+  // in Step 2 where we know the context (air / water / buried).
   for (int pass = 0; pass < TEMP_DIFFUSION_PASSES; pass++) {
-    const bool lastPass = (pass == TEMP_DIFFUSION_PASSES - 1);
     for (int cy = 0; cy < TEMP_GRID_H; cy++) {
       for (int cx = 0; cx < TEMP_GRID_W; cx++) {
         int t = temperature[cy][cx];
         // Clamp missing edge neighbours to the cell's own value so absent
-        // borders don't artificially cool/heat edge cells (missing neighbour
-        // contributing 0 with a fixed ÷8 divisor caused cold bleeding in).
+        // borders don't artificially cool/heat edge cells.
         int tL = (cx > 0)               ? (int)temperature[cy][cx - 1] : t;
         int tR = (cx < TEMP_GRID_W - 1) ? (int)temperature[cy][cx + 1] : t;
         int tU = (cy > 0)               ? (int)temperature[cy - 1][cx] : t;
         int tD = (cy < TEMP_GRID_H - 1) ? (int)temperature[cy + 1][cx] : t;
         // Always exactly 8 contributions → safe power-of-2 shift
-        int avg = ((t << 2) + tL + tR + tU + tD) >> 3;
-        // Drift one step towards ambient only on the final pass
-        if (lastPass) {
-          if      (avg > TEMP_AMBIENT) avg--;
-          else if (avg < TEMP_AMBIENT) avg++;
-        }
-        temperature[cy][cx] = static_cast<uint8_t>(avg);
+        temperature[cy][cx] = static_cast<uint8_t>(((t << 2) + tL + tR + tU + tD) >> 3);
       }
     }
   }
@@ -57,34 +51,48 @@ static void propagateTemperature() {
     for (int cx = 0; cx < TEMP_GRID_W; cx++) {
       const int fineX0 = cx * TEMP_SCALE;
       const int fineY0 = cy * TEMP_SCALE;
-      bool hasLava   = false;
-      bool hasWater  = false;
-      int  wallCount = 0; // count wall cells in this coarse tile
+      bool hasLava  = false;
+      bool hasWater = false;
+      int  wallCount = 0;
+      int  airCount  = 0;
       for (int dy = 0; dy < TEMP_SCALE; dy++) {
         for (int dx = 0; dx < TEMP_SCALE; dx++) {
           Particle p = grid[fineY0 + dy][fineX0 + dx];
-          if (p == Particle::LAVA)  { hasLava = true; break; }
-          if (p == Particle::WALL)    wallCount++;
-          if (p == Particle::WATER)   hasWater = true;
+          if      (p == Particle::LAVA)  { hasLava = true; }
+          else if (p == Particle::WALL)  { wallCount++; }
+          else if (p == Particle::WATER) { hasWater = true; }
+          else if (p == Particle::AIR)   { airCount++; }
         }
-        if (hasLava) break;
       }
-      // A tile is a thermal barrier only when EVERY fine cell is a wall
-      // (i.e. a solid, player-built wall block).  Tiles that merely touch a
-      // boundary wall on one edge still contain live cells and must not have
-      // their temperature wiped — that was causing the left/right columns to
-      // be permanently cold regardless of nearby lava.
       const bool allWall = (wallCount == TEMP_SCALE * TEMP_SCALE);
       if (hasLava) {
+        // Lava pins its tile to maximum heat — it is a continuous heat source.
         temperature[cy][cx] = TEMP_LAVA;
       } else if (allWall) {
-        // Entirely-wall tile: act as thermal insulator, pin to ambient.
+        // Entirely-wall tile: thermal insulator, always ambient.
         temperature[cy][cx] = TEMP_AMBIENT;
-      } else if (hasWater && temperature[cy][cx] > TEMP_COLD) {
-        temperature[cy][cx]--; // water slowly cools its coarse tile
+      } else {
+        // Context-aware cooling:
+        //  • Water present  → aggressively cool toward TEMP_COLD
+        //  • Air present    → slow drift toward TEMP_AMBIENT (1/tick)
+        //  • Buried (solid) → negligible cooling (1-in-16 chance)
+        int t = static_cast<int>(temperature[cy][cx]);
+        if (hasWater) {
+          t -= TEMP_WATER_COOL_RATE;
+          if (t < TEMP_COLD) t = TEMP_COLD;
+        } else if (airCount > 0) {
+          if      (t > TEMP_AMBIENT) t--;
+          else if (t < TEMP_AMBIENT) t++;
+        } else {
+          // Buried — very slowly return to ambient
+          if (t != TEMP_AMBIENT && (xorshift32() & TEMP_BURIED_COOL_MASK) == 0) {
+            if (t > TEMP_AMBIENT) t--;
+            else                  t++;
+          }
+        }
+        temperature[cy][cx] = static_cast<uint8_t>(t);
       }
-      // Pure-air cells: no special override — diffusion in Step 1 already
-      // drifts them toward ambient gradually.
+      // (no separate comment needed — cooling handled above)
     }
   }
 
@@ -172,6 +180,14 @@ static void updateWater(int x, int y) {
 
 // Update stone particle (just falls, no sideways movement)
 static void updateStone(int x, int y) {
+  // Stone submerged in extreme heat (needs multiple nearby lava cells to
+  // push the coarse tile past TEMP_STONE_MELT) slowly melts back to lava.
+  if (tempGet(x, y) >= TEMP_STONE_MELT && (xorshift32() & 0x1Fu) == 0) {
+    grid[y][x] = Particle::LAVA;
+    tempSet(x, y, TEMP_LAVA);
+    return;
+  }
+
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
     updatedSet(x, y);
@@ -179,6 +195,26 @@ static void updateStone(int x, int y) {
   }
 }
 static void updateLava(int x, int y) {
+  // Isolated lava (no adjacent lava cell) slowly solidifies into stone,
+  // modelling a thin tendril of lava losing heat to its surroundings.
+  // Lava inside a larger pool (has neighbours) stays molten indefinitely.
+  bool hasAdjacentLava = false;
+  for (int dy = -1; dy <= 1 && !hasAdjacentLava; dy++) {
+    for (int dx = -1; dx <= 1 && !hasAdjacentLava; dx++) {
+      if (dx == 0 && dy == 0) continue;
+      if (isValid(x + dx, y + dy) && grid[y + dy][x + dx] == Particle::LAVA)
+        hasAdjacentLava = true;
+    }
+  }
+  // Low probability so solidification takes many seconds, not instant.
+  // Also require the coarse tile has cooled somewhat (water quenching is
+  // the main fast-solidification path).
+  if (!hasAdjacentLava && tempGet(x, y) < TEMP_LAVA &&
+      (xorshift32() & 0xFFu) == 0) {
+    grid[y][x] = Particle::STONE;
+    return;
+  }
+
   // Check and convert adjacent particles
   // Check all 8 neighbors for sand/water/plant
   for (int dy = -1; dy <= 1; dy++) {
