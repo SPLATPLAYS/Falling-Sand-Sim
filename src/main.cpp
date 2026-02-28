@@ -17,6 +17,7 @@
 #include "physics.h"
 #include "renderer.h"
 #include "input.h"
+#include "settings.h"
 
 APP_NAME("Falling Sand")
 APP_AUTHOR("SPLATPLAYS")
@@ -32,7 +33,10 @@ int main(int argc, char **argv, char **envp) {
   
   // Initialize grid
   initGrid();
-  
+
+  // Load persisted settings (brush size) from MCS
+  initSettings();
+
   // Get actual LCD dimensions and initialize renderer
   unsigned int width, height;
   LCD_GetSize(&width, &height);

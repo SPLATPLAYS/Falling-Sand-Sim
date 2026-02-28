@@ -34,8 +34,10 @@ constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
 constexpr uint16_t COLOR_UI_AIR = 0xF81F;  // Bright pink (magenta) for UI display
 constexpr uint16_t COLOR_HIGHLIGHT = 0xFFFF; // White
 
-// Brush size
-constexpr int BRUSH_SIZE = 3;
+// Brush size (runtime variable, persisted via MCS)
+constexpr int BRUSH_SIZE_DEFAULT = 3;
+constexpr int BRUSH_SIZE_MIN     = 1;
+constexpr int BRUSH_SIZE_MAX     = 9;
 
 // UI constants
 constexpr int UI_HEIGHT = 16;
@@ -43,6 +45,13 @@ constexpr int SWATCH_SIZE = 16;
 constexpr int SWATCH_SPACING = 20;
 constexpr int UI_START_X = 10;
 constexpr int PARTICLE_TYPE_COUNT = 7;
+
+// Brush size slider layout (placed after particle swatches in the UI bar)
+// Swatches occupy x = 10 to 10 + 7*20 = 150; slider starts at 155
+constexpr int BRUSH_SLIDER_DIGIT_X  = 155; // X of brush-size digit
+constexpr int BRUSH_SLIDER_TRACK_X  = 165; // X where slider track begins
+constexpr int BRUSH_SLIDER_TRACK_W  = 80;  // Pixel width of track
+constexpr int BRUSH_SLIDER_HANDLE_W = 6;   // Pixel width of handle
 
 // Frame skipping for performance
 constexpr int FRAME_SKIP_AMOUNT = 0;       // 0 = no skip, 1 = skip 1 frame (30fps), 2 = skip 2 frames (20fps), etc.

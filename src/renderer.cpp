@@ -2,6 +2,7 @@
 #include "config.h"
 #include "particle.h"
 #include "grid.h"
+#include "input.h"
 #include <ctime>
 
 // Actual LCD dimensions (set at runtime)
@@ -14,8 +15,7 @@ static int frameIndex = 0;
 static uint32_t lastFrameTime = 0;
 static float currentFPS = 0.0f;
 
-// External reference to selected particle (from input.cpp)
-extern Particle selectedParticle;
+// External reference to selected particle (from input.cpp) - now via input.h
 
 // Simple cycle counter for timing (using clock())
 static uint32_t getTickCount() {
@@ -112,6 +112,43 @@ static void drawFPS(uint16_t* vram) {
   drawDigit(vram, x, FPS_DISPLAY_Y, ones, COLOR_HIGHLIGHT);
 }
 
+// Draw the brush-size slider in the UI bar.
+// Layout: digit showing current size | track | handle
+static void drawBrushSlider(uint16_t* vram) {
+  const int UI_Y = SCREEN_HEIGHT - UI_HEIGHT;
+
+  // --- Digit: current brush size (1-9) ---
+  drawDigit(vram,
+            BRUSH_SLIDER_DIGIT_X,
+            UI_Y + (UI_HEIGHT - 7) / 2,  // vertically centred in bar
+            brushSize,
+            COLOR_HIGHLIGHT);
+
+  // --- Track: thin horizontal line ---
+  const int trackY = UI_Y + UI_HEIGHT / 2;  // vertical centre of bar
+  for (int tx = BRUSH_SLIDER_TRACK_X;
+       tx < BRUSH_SLIDER_TRACK_X + BRUSH_SLIDER_TRACK_W;
+       tx++) {
+    if (tx >= 0 && tx < lcdWidth && trackY >= 0 && trackY < lcdHeight)
+      vram[trackY * lcdWidth + tx] = COLOR_WALL;  // dark-grey track
+  }
+
+  // --- Handle: small filled rectangle ---
+  // Position proportionally within the track
+  const int effectiveW = BRUSH_SLIDER_TRACK_W - BRUSH_SLIDER_HANDLE_W;
+  const int handleX = BRUSH_SLIDER_TRACK_X +
+    (brushSize - BRUSH_SIZE_MIN) * effectiveW / (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN);
+  const int handleTop    = UI_Y + 2;
+  const int handleBottom = UI_Y + UI_HEIGHT - 2;
+
+  for (int hy = handleTop; hy < handleBottom; hy++) {
+    for (int hx = handleX; hx < handleX + BRUSH_SLIDER_HANDLE_W; hx++) {
+      if (hx >= 0 && hx < lcdWidth && hy >= 0 && hy < lcdHeight)
+        vram[hy * lcdWidth + hx] = COLOR_HIGHLIGHT;
+    }
+  }
+}
+
 // Draw the grid to screen - optimized for faster VRAM writes
 void drawGrid(uint16_t* vram) {
   // Optimized: write scanlines directly with proper bounds checking
@@ -177,4 +214,7 @@ void drawGrid(uint16_t* vram) {
   
   // Draw FPS counter
   drawFPS(vram);
+
+  // Draw brush size slider
+  drawBrushSlider(vram);
 }
