@@ -32,7 +32,7 @@ static void placeParticle(int gridX, int gridY) {
           // Don't erase the UI boundary wall at row 87
           if (y == UI_BOUNDARY - 1) continue;
           grid[y][x] = Particle::AIR;
-          temperature[y][x] = TEMP_AMBIENT;
+          tempSet(x, y, TEMP_AMBIENT);
         }
       }
     }
@@ -55,7 +55,7 @@ static void placeParticle(int gridX, int gridY) {
           continue;
         }
         grid[y][x] = selectedParticle;
-        temperature[y][x] = getParticleTemperature(selectedParticle);
+        tempSet(x, y, getParticleTemperature(selectedParticle));
       }
     }
   }

@@ -9,7 +9,15 @@ constexpr int UPDATED_WORDS = (GRID_WIDTH + 31) / 32;
 // Global grid - aligned for better cache performance
 extern Particle grid[GRID_HEIGHT][GRID_WIDTH];
 extern uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell (576 bytes vs 18 KB)
-extern uint8_t temperature[GRID_HEIGHT][GRID_WIDTH]; // Temperature value for each cell (0-255)
+extern uint8_t temperature[TEMP_GRID_H][TEMP_GRID_W]; // Coarse temperature grid (1,152 bytes vs 18 KB)
+
+// Coarse temperature accessors (fine-cell coordinates)
+inline uint8_t tempGet(int x, int y) {
+  return temperature[y / TEMP_SCALE][x / TEMP_SCALE];
+}
+inline void tempSet(int x, int y, uint8_t val) {
+  temperature[y / TEMP_SCALE][x / TEMP_SCALE] = val;
+}
 
 // Bitset helpers
 inline bool updatedGet(int x, int y) {

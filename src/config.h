@@ -77,6 +77,11 @@ constexpr int FALL_SPEED_SAND = 2;   // Medium - normal fall speed
 constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
 constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
 
+// Coarse temperature grid (¼ resolution: 1 cell covers 4×4 fine cells)
+constexpr int TEMP_SCALE   = 4;
+constexpr int TEMP_GRID_W  = GRID_WIDTH  / TEMP_SCALE;  // 48
+constexpr int TEMP_GRID_H  = GRID_HEIGHT / TEMP_SCALE;  // 24
+
 // Temperature constants (0-255 scale)
 constexpr uint8_t TEMP_AMBIENT = 50;      // Default/room temperature
 constexpr uint8_t TEMP_COLD = 20;         // Cold temperature

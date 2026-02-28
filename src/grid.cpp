@@ -4,15 +4,15 @@
 // Global grid - aligned for better cache performance
 alignas(32) Particle grid[GRID_HEIGHT][GRID_WIDTH];
 alignas(32) uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell
-alignas(32) uint8_t temperature[GRID_HEIGHT][GRID_WIDTH]; // Temperature value for each cell (0-255)
+alignas(32) uint8_t temperature[TEMP_GRID_H][TEMP_GRID_W]; // Coarse temperature grid (1,152 bytes)
 
 // Initialize the grid
 void initGrid() {
   memset(updated, 0, sizeof(updated));
+  memset(temperature, TEMP_AMBIENT, sizeof(temperature));
   for (int y = 0; y < GRID_HEIGHT; y++) {
     for (int x = 0; x < GRID_WIDTH; x++) {
       grid[y][x] = Particle::AIR;
-      temperature[y][x] = TEMP_AMBIENT; // Initialize to ambient temperature
     }
   }
   
@@ -21,17 +21,13 @@ void initGrid() {
   const int UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
   for (int x = 0; x < GRID_WIDTH; x++) {
     grid[UI_BOUNDARY - 1][x] = Particle::WALL;
-    temperature[UI_BOUNDARY - 1][x] = TEMP_AMBIENT;
     grid[GRID_HEIGHT - 1][x] = Particle::WALL;
-    temperature[GRID_HEIGHT - 1][x] = TEMP_AMBIENT;
   }
   
   // Create side walls
   for (int y = 0; y < GRID_HEIGHT; y++) {
     grid[y][0] = Particle::WALL;
-    temperature[y][0] = TEMP_AMBIENT;
     grid[y][GRID_WIDTH - 1] = Particle::WALL;
-    temperature[y][GRID_WIDTH - 1] = TEMP_AMBIENT;
   }
 }
 
