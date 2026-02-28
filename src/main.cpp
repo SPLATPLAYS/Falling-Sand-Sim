@@ -10,68 +10,12 @@
 #include <sdk/os/gui.h>
 #include <sdk/os/input.h>
 
+#include "config.h"
+
 APP_NAME("Falling Sand")
 APP_AUTHOR("SPLATPLAYS")
 APP_DESCRIPTION("A falling sand simulator with multiple particle types")
 APP_VERSION("1.0.0")
-
-// Screen dimensions
-constexpr int SCREEN_WIDTH = 384;
-constexpr int SCREEN_HEIGHT = 192;
-
-// Simulation grid dimensions (scaled down for performance)
-constexpr int GRID_WIDTH = 192;
-constexpr int GRID_HEIGHT = 96;
-constexpr int PIXEL_SIZE = 2; // Each cell is 2x2 pixels
-
-// Particle types
-enum class Particle : uint8_t {
-  AIR = 0,
-  SAND,
-  WATER,
-  STONE,
-  WALL,
-  LAVA,
-  PLANT
-};
-
-// Color definitions (RGB565 format)
-constexpr uint16_t COLOR_AIR = 0x0000;     // Black
-constexpr uint16_t COLOR_SAND = 0xFDA0;    // Sandy yellow
-constexpr uint16_t COLOR_WATER = 0x03BF;   // Blue
-constexpr uint16_t COLOR_STONE = 0x7BEF;   // Gray
-constexpr uint16_t COLOR_WALL = 0x4208;    // Dark gray
-constexpr uint16_t COLOR_LAVA = 0xF800;    // Bright red-orange
-constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
-constexpr uint16_t COLOR_UI_AIR = 0xF81F;  // Bright pink (magenta) for UI display
-constexpr uint16_t COLOR_HIGHLIGHT = 0xFFFF; // White
-
-// Brush size
-constexpr int BRUSH_SIZE = 3;
-
-// UI constants
-constexpr int UI_HEIGHT = 16;
-constexpr int SWATCH_SIZE = 16;
-constexpr int SWATCH_SPACING = 20;
-constexpr int UI_START_X = 10;
-constexpr int PARTICLE_TYPE_COUNT = 7;
-
-// Simulation probabilities and limits
-constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways
-constexpr int PLANT_GROWTH_CHANCE = 10;    // 1 in 10 chance to grow per frame
-constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell for growth
-
-// FPS counter constants
-constexpr int FPS_SAMPLE_COUNT = 30;       // Average FPS over last 30 frames
-constexpr int FPS_DISPLAY_X = 300;         // X position for FPS display
-constexpr int FPS_DISPLAY_Y = 2;           // Y position for FPS display
-
-// Particle fall speeds (lower = faster, represents update frequency)
-// 1 = updates every frame, 2 = updates 50% of frames, 3 = updates 33% of frames, etc.
-constexpr int FALL_SPEED_STONE = 1;  // Heavy - falls fastest
-constexpr int FALL_SPEED_SAND = 2;   // Medium - normal fall speed
-constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
-constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
 
 // XorShift32 PRNG - fast and lightweight for embedded systems
 static uint32_t xorshift_state = 0x12345678;
