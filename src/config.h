@@ -82,6 +82,14 @@ constexpr int TEMP_SCALE   = 4;
 constexpr int TEMP_GRID_W  = GRID_WIDTH  / TEMP_SCALE;  // 48
 constexpr int TEMP_GRID_H  = GRID_HEIGHT / TEMP_SCALE;  // 24
 
+// Grid row split across on-chip X/Y RAM (4 KB per bank, 2 banks each = 8 KB each)
+// X RAM holds rows 0..41  (42 × 192 = 8,064 bytes < 8,192)
+// Y RAM holds rows 42..83 (42 × 192 = 8,064 bytes < 8,192)
+// Regular RAM holds rows 84..95 (12 × 192 = 2,304 bytes)
+constexpr int GRID_ROWS_X    = 42;
+constexpr int GRID_ROWS_Y    = 42;
+constexpr int GRID_ROWS_REST = GRID_HEIGHT - GRID_ROWS_X - GRID_ROWS_Y; // 12
+
 // Temperature constants (0-255 scale)
 constexpr uint8_t TEMP_AMBIENT = 50;      // Default/room temperature
 constexpr uint8_t TEMP_COLD = 20;         // Cold temperature

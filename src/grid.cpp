@@ -1,13 +1,25 @@
 #include "grid.h"
 #include <cstring>
 
-// Global grid - aligned for better cache performance
-alignas(32) Particle grid[GRID_HEIGHT][GRID_WIDTH];
+// Grid split across on-chip X/Y RAM — section names match the SDK linker script (same as CPBoy)
+Particle gridX[GRID_ROWS_X][GRID_WIDTH]       __attribute__((section(".oc_mem.x.data")));
+Particle gridY[GRID_ROWS_Y][GRID_WIDTH]       __attribute__((section(".oc_mem.y.data")));
+Particle gridRest[GRID_ROWS_REST][GRID_WIDTH]; // remaining rows in regular RAM
+// Row-pointer table (built in initGrid)
+Particle *grid[GRID_HEIGHT];
 alignas(32) uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell
 alignas(32) uint8_t temperature[TEMP_GRID_H][TEMP_GRID_W]; // Coarse temperature grid (1,152 bytes)
 
 // Initialize the grid
 void initGrid() {
+  // Build row-pointer table
+  for (int y = 0; y < GRID_ROWS_X; y++)
+    grid[y] = gridX[y];
+  for (int y = 0; y < GRID_ROWS_Y; y++)
+    grid[GRID_ROWS_X + y] = gridY[y];
+  for (int y = 0; y < GRID_ROWS_REST; y++)
+    grid[GRID_ROWS_X + GRID_ROWS_Y + y] = gridRest[y];
+
   memset(updated, 0, sizeof(updated));
   memset(temperature, TEMP_AMBIENT, sizeof(temperature));
   for (int y = 0; y < GRID_HEIGHT; y++) {

@@ -6,8 +6,13 @@
 // Words per row for the updated bitset
 constexpr int UPDATED_WORDS = (GRID_WIDTH + 31) / 32;
 
-// Global grid - aligned for better cache performance
-extern Particle grid[GRID_HEIGHT][GRID_WIDTH];
+// Global grid split across on-chip X/Y RAM (rows 0-41 in X, 42-83 in Y, 84-95 in RAM)
+// Sub-arrays (do not access directly; use grid[y][x])
+extern Particle gridX[GRID_ROWS_X][GRID_WIDTH];    // .oc_mem.x.data
+extern Particle gridY[GRID_ROWS_Y][GRID_WIDTH];    // .oc_mem.y.data
+extern Particle gridRest[GRID_ROWS_REST][GRID_WIDTH]; // regular RAM
+// Row-pointer table — grid[y][x] works identically to a 2-D array
+extern Particle *grid[GRID_HEIGHT];
 extern uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell (576 bytes vs 18 KB)
 extern uint8_t temperature[TEMP_GRID_H][TEMP_GRID_W]; // Coarse temperature grid (1,152 bytes vs 18 KB)
 
