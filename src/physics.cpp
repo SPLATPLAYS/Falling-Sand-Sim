@@ -186,7 +186,12 @@ ILRAM_FUNC void simulate() {
       if (updatedGet(x, y)) continue;
       
       Particle p = grid[y][x];
-      
+
+      // AIR and WALL never move — skip before any further work
+      // (bitset read, PRNG call, switch) to avoid wasting cycles on the
+      // majority of cells which are typically empty or static.
+      if (p == Particle::AIR || p == Particle::WALL) continue;
+
       // Check if particle should update based on its density/fall speed
       if (!shouldUpdate(p)) continue;
       
