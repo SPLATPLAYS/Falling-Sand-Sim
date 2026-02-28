@@ -92,21 +92,31 @@ static void drawDigit(uint16_t* vram, int x, int y, int digit, uint16_t color) {
 // Draw FPS counter on screen
 static void drawFPS(uint16_t* vram) {
   int fps = static_cast<int>(currentFPS + 0.5f);
-  if (fps > 999) fps = 999;
+  if (fps > 99999) fps = 99999;
   
   // Extract digits
-  int hundreds = fps / 100;
-  int tens = (fps / 10) % 10;
-  int ones = fps % 10;
+  int tenthousands = fps / 10000;
+  int thousands    = (fps / 1000) % 10;
+  int hundreds     = (fps / 100)  % 10;
+  int tens         = (fps / 10)   % 10;
+  int ones         =  fps         % 10;
   
   int x = FPS_DISPLAY_X;
   
-  // Draw digits with spacing
-  if (hundreds > 0) {
+  // Draw digits with spacing, suppressing leading zeros
+  if (tenthousands > 0) {
+    drawDigit(vram, x, FPS_DISPLAY_Y, tenthousands, COLOR_HIGHLIGHT);
+    x += 6;
+  }
+  if (tenthousands > 0 || thousands > 0) {
+    drawDigit(vram, x, FPS_DISPLAY_Y, thousands, COLOR_HIGHLIGHT);
+    x += 6;
+  }
+  if (tenthousands > 0 || thousands > 0 || hundreds > 0) {
     drawDigit(vram, x, FPS_DISPLAY_Y, hundreds, COLOR_HIGHLIGHT);
     x += 6;
   }
-  if (hundreds > 0 || tens > 0) {
+  if (tenthousands > 0 || thousands > 0 || hundreds > 0 || tens > 0) {
     drawDigit(vram, x, FPS_DISPLAY_Y, tens, COLOR_HIGHLIGHT);
     x += 6;
   }
