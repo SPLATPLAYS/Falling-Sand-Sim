@@ -4,6 +4,7 @@
 #include "grid.h"
 #include "input.h"
 #include <ctime>
+#include <cstring>
 
 // Actual LCD dimensions (set at runtime)
 int lcdWidth = SCREEN_WIDTH;
@@ -155,22 +156,22 @@ void drawGrid(uint16_t* vram) {
   // Each grid cell is PIXEL_SIZE x PIXEL_SIZE pixels
   for (int y = 0; y < GRID_HEIGHT; y++) {
     int screenY = y * PIXEL_SIZE;
-    // Calculate base VRAM addresses for both scanlines of this grid row
     uint16_t* scanline0 = vram + screenY * lcdWidth;
     uint16_t* scanline1 = vram + (screenY + 1) * lcdWidth;
-    
+
+    // Write the full first scanline before touching the second.
+    // Sequential writes into one contiguous buffer are far more cache-friendly
+    // than interleaving writes 768 bytes apart for every x column.
     for (int x = 0; x < GRID_WIDTH; x++) {
       uint16_t color = getParticleColor(grid[y][x]);
-      
-      // Write 2x2 pixel block using direct pointer writes
       int screenX = x * PIXEL_SIZE;
-      if (screenX + 1 < lcdWidth && screenY + 1 < lcdHeight) {
-        scanline0[screenX] = color;
-        scanline0[screenX + 1] = color;
-        scanline1[screenX] = color;
-        scanline1[screenX + 1] = color;
-      }
+      scanline0[screenX]     = color;
+      scanline0[screenX + 1] = color;
     }
+
+    // scanline1 is pixel-perfect identical to scanline0 — bulk-copy it.
+    // GRID_WIDTH * PIXEL_SIZE == SCREEN_WIDTH, so this covers the full row.
+    memcpy(scanline1, scanline0, (size_t)GRID_WIDTH * PIXEL_SIZE * sizeof(uint16_t));
   }
   
   // Draw UI - particle selector at bottom
