@@ -11,6 +11,7 @@
 #include <sdk/os/input.h>
 
 #include "config.h"
+#include "particle.h"
 
 APP_NAME("Falling Sand")
 APP_AUTHOR("SPLATPLAYS")
@@ -129,35 +130,11 @@ void drawFPS(uint16_t* vram) {
   drawDigit(vram, x, FPS_DISPLAY_Y, ones, COLOR_HIGHLIGHT);
 }
 
-// Get fall speed for a particle type (lower = faster)
-inline int getFallSpeed(Particle p) {
-  switch (p) {
-    case Particle::STONE: return FALL_SPEED_STONE;
-    case Particle::SAND: return FALL_SPEED_SAND;
-    case Particle::WATER: return FALL_SPEED_WATER;
-    case Particle::LAVA: return FALL_SPEED_LAVA;
-    default: return 1; // Stationary particles, doesn't matter
-  }
-}
-
 // Check if a particle should update this frame based on its fall speed
 inline bool shouldUpdate(Particle p) {
   int fallSpeed = getFallSpeed(p);
   if (fallSpeed <= 1) return true;
   return (xorshift32() % fallSpeed) == 0;
-}
-
-// Get color for particle type
-uint16_t getParticleColor(Particle p) {
-  switch (p) {
-    case Particle::SAND: return COLOR_SAND;
-    case Particle::WATER: return COLOR_WATER;
-    case Particle::STONE: return COLOR_STONE;
-    case Particle::WALL: return COLOR_WALL;
-    case Particle::LAVA: return COLOR_LAVA;
-    case Particle::PLANT: return COLOR_PLANT;
-    default: return COLOR_AIR;
-  }
 }
 
 // Initialize the grid
