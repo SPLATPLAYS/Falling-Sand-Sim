@@ -151,7 +151,7 @@ static void drawBrushSlider(uint16_t* vram) {
 }
 
 // Draw the grid to screen - optimized for faster VRAM writes
-void drawGrid(uint16_t* vram) {
+ILRAM_FUNC void drawGrid(uint16_t* vram) {
   // Optimized: write scanlines directly with proper bounds checking
   // Each grid cell is PIXEL_SIZE x PIXEL_SIZE pixels
   for (int y = 0; y < GRID_HEIGHT; y++) {

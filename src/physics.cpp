@@ -170,7 +170,7 @@ static void updatePlant(int x, int y) {
 }
 
 // Simulate one step
-void simulate() {
+ILRAM_FUNC void simulate() {
   // Clear update flags
   memset(updated, 0, sizeof(updated));
   

@@ -4,6 +4,6 @@
 #include "config.h"
 
 // Simulate one step of the physics
-void simulate();
+ILRAM_FUNC void simulate();
 
 #endif // PHYSICS_H

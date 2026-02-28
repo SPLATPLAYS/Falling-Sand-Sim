@@ -90,6 +90,11 @@ constexpr int GRID_ROWS_X    = 42;
 constexpr int GRID_ROWS_Y    = 42;
 constexpr int GRID_ROWS_REST = GRID_HEIGHT - GRID_ROWS_X - GRID_ROWS_Y; // 12
 
+// ILRAM placement: functions marked with this attribute are placed in the
+// SH7305's internal instruction RAM, which is significantly faster to fetch
+// and execute than regular external flash/SDRAM.
+#define ILRAM_FUNC __attribute__((section(".ilram")))
+
 // Temperature constants (0-255 scale)
 constexpr uint8_t TEMP_AMBIENT = 50;      // Default/room temperature
 constexpr uint8_t TEMP_COLD = 20;         // Cold temperature

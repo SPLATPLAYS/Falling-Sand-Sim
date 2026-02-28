@@ -2,6 +2,7 @@
 #define RENDERER_H
 
 #include <cstdint>
+#include "config.h"
 
 // Actual LCD dimensions (set at runtime)
 extern int lcdWidth;
@@ -14,6 +15,6 @@ void initRenderer(int width, int height);
 void updateFPS();
 
 // Draw the grid to screen
-void drawGrid(uint16_t* vram);
+ILRAM_FUNC void drawGrid(uint16_t* vram);
 
 #endif // RENDERER_H
