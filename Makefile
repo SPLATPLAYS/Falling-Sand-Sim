@@ -41,6 +41,12 @@ OBJECTS := $(addprefix $(BUILDDIR)/,$(AS_SOURCES:.S=.o)) \
 
 NOLTOOBJS := $(foreach obj, $(OBJECTS), $(if $(findstring /nolto/, $(obj)), $(obj)))
 
+# Hot translation units that benefit most from aggressive optimisation.
+# -Ofast overrides the global -O2 (GCC uses the last -O flag it sees) and also
+# enables -ffast-math, -fno-trapping-math, etc.  Floating-point use here is
+# limited to the FPS counter (currentFPS), where IEEE-exact rounding is not needed.
+HOTOBJS := $(BUILDDIR)/src/physics.o $(BUILDDIR)/src/renderer.o
+
 DEPFILES := $(OBJECTS:$(BUILDDIR)/%.o=$(DEPDIR)/%.d)
 
 hh3: $(APP_HH3) Makefile
@@ -62,6 +68,7 @@ $(APP_ELF): $(OBJECTS)
 	$(LD) -Wl,-Map $@.map -o $@ $(LD_FLAGS) $^ $(LIBS)
 
 $(NOLTOOBJS): FUNCTION_FLAGS+=-fno-lto
+$(HOTOBJS):   FUNCTION_FLAGS+=-Ofast
 
 $(BUILDDIR)/%.o: %.S
 	@mkdir -p $(dir $@)
