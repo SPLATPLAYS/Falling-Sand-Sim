@@ -44,21 +44,29 @@ static void propagateTemperature() {
     for (int cx = 0; cx < TEMP_GRID_W; cx++) {
       const int fineX0 = cx * TEMP_SCALE;
       const int fineY0 = cy * TEMP_SCALE;
-      bool hasLava  = false;
-      bool hasWater = false;
+      bool hasLava   = false;
+      bool hasWater  = false;
+      bool hasWall   = false; // any WALL cell → thermal barrier
       for (int dy = 0; dy < TEMP_SCALE; dy++) {
         for (int dx = 0; dx < TEMP_SCALE; dx++) {
           Particle p = grid[fineY0 + dy][fineX0 + dx];
-          if (p == Particle::LAVA)  { hasLava  = true; break; }
+          if (p == Particle::LAVA)  { hasLava = true; break; }
+          if (p == Particle::WALL)    hasWall  = true;
           if (p == Particle::WATER)   hasWater = true;
         }
         if (hasLava) break;
       }
       if (hasLava) {
         temperature[cy][cx] = TEMP_LAVA;
+      } else if (hasWall) {
+        // Coarse cell contains a wall — act as thermal insulator so heat
+        // cannot bleed through boundary/player walls or into the UI zone.
+        temperature[cy][cx] = TEMP_AMBIENT;
       } else if (hasWater && temperature[cy][cx] > TEMP_COLD) {
         temperature[cy][cx]--; // water slowly cools its coarse tile
       }
+      // Pure-air cells: no special override — diffusion in Step 1 already
+      // drifts them toward ambient gradually.
     }
   }
 }

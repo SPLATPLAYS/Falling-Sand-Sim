@@ -173,7 +173,9 @@ ILRAM_FUNC void drawGrid(uint16_t* vram) {
     // Sequential writes into one contiguous buffer are far more cache-friendly
     // than interleaving writes 768 bytes apart for every x column.
     for (int x = 0; x < GRID_WIDTH; x++) {
-      uint16_t color = getParticleColorVaried(grid[y][x], x, y);
+      uint16_t color = tempViewEnabled
+        ? (grid[y][x] == Particle::WALL ? tempToColor(TEMP_AMBIENT) : tempToColor(tempGet(x, y)))
+        : getParticleColorVaried(grid[y][x], x, y);
       int screenX = x * PIXEL_SIZE;
       scanline0[screenX]     = color;
       scanline0[screenX + 1] = color;

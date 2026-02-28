@@ -12,6 +12,9 @@ Particle selectedParticle = Particle::SAND;
 // Current brush size (runtime, persisted in MCS)
 int brushSize = BRUSH_SIZE_DEFAULT;
 
+// Temperature heat-map overlay toggle
+bool tempViewEnabled = false;
+
 // Place particles at position
 static void placeParticle(int gridX, int gridY) {
   if (!isValid(gridX, gridY)) return;
@@ -132,6 +135,11 @@ bool handleInput() {
           brushSize--;
           saveBrushSize();
         }
+      }
+      // 0 key: toggle temperature heat-map overlay
+      if (event.data.key.keyCode == KEYCODE_0 &&
+          event.data.key.direction == KEY_PRESSED) {
+        tempViewEnabled = !tempViewEnabled;
       }
       // Exit with EXE key
       if (event.data.key.keyCode == KEYCODE_EXE && 

@@ -56,4 +56,17 @@ inline uint16_t getParticleColorVaried(Particle p, int x, int y) {
   return base ^ (static_cast<uint16_t>(v & 0x3u) << 5);
 }
 
+// Map temperature (0-255) to an RGB565 heat-map colour.
+// Uses a 32-entry ROM palette (64 bytes in flash) — zero extra RAM cost.
+// deep-blue (cold=0) → black (ambient≈50) → red → orange → yellow → white (lava=255)
+inline uint16_t tempToColor(uint8_t t) {
+  static const uint16_t palette[32] = {
+    0x001E, 0x001C, 0x0018, 0x0012, 0x000C, 0x0006, 0x0002, 0x0000, // 0..55   cold (blue→black)
+    0x1000, 0x2800, 0x4000, 0x6000, 0x8000, 0xA000, 0xC000, 0xE000, // 56..127  warming (black→red)
+    0xF880, 0xF940, 0xFA40, 0xFB40, 0xFC40, 0xFD40, 0xFE40, 0xFF40, // 128..199 hot (red→yellow)
+    0xFFE0, 0xFFE4, 0xFFE8, 0xFFEE, 0xFFF4, 0xFFFA, 0xFFED, 0xFFFF  // 200..255 lava (yellow→white)
+  };
+  return palette[t >> 3];
+}
+
 #endif // PARTICLE_H
