@@ -71,11 +71,19 @@ constexpr int FPS_DISPLAY_Y = 2;           // Y position for FPS display
 // not total simulation updates. Physics continues to update at full speed.
 
 // Particle fall speeds (lower = faster, represents update frequency)
-// 1 = updates every frame, 2 = updates 50% of frames, 3 = updates 33% of frames, etc.
+// 1 = updates every frame, 2 = updates 50% of frames, 4 = updates 25% of frames, etc.
+// MUST be powers of 2: shouldUpdate() uses (xorshift32() & (speed-1)) instead of
+// modulo to avoid SH4's slow software-emulated integer division.
 constexpr int FALL_SPEED_STONE = 1;  // Heavy - falls fastest
 constexpr int FALL_SPEED_SAND = 2;   // Medium - normal fall speed
 constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
 constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
+
+// Enforce power-of-2 constraint at compile time
+static_assert((FALL_SPEED_STONE & (FALL_SPEED_STONE - 1)) == 0, "FALL_SPEED_STONE must be a power of 2");
+static_assert((FALL_SPEED_SAND  & (FALL_SPEED_SAND  - 1)) == 0, "FALL_SPEED_SAND must be a power of 2");
+static_assert((FALL_SPEED_WATER & (FALL_SPEED_WATER - 1)) == 0, "FALL_SPEED_WATER must be a power of 2");
+static_assert((FALL_SPEED_LAVA  & (FALL_SPEED_LAVA  - 1)) == 0, "FALL_SPEED_LAVA must be a power of 2");
 
 // Coarse temperature grid (¼ resolution: 1 cell covers 4×4 fine cells)
 constexpr int TEMP_SCALE   = 4;

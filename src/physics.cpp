@@ -4,11 +4,14 @@
 #include "random.h"
 #include <cstring>
 
-// Check if a particle should update this frame based on its fall speed
+// Check if a particle should update this frame based on its fall speed.
+// Fall speeds MUST be powers of 2 (enforced by static_assert in config.h) so
+// that the cheap bitwise AND replaces the integer division that `%` compiles to
+// on SH4 (which has no hardware divide instruction — it is a software call).
 static bool shouldUpdate(Particle p) {
   int fallSpeed = getFallSpeed(p);
-  if (fallSpeed <= 1) return true;
-  return (xorshift32() % fallSpeed) == 0;
+  if (fallSpeed <= 1) return true;  // skip PRNG call for always-update particles
+  return (xorshift32() & (fallSpeed - 1)) == 0;
 }
 
 // Update sand particle
