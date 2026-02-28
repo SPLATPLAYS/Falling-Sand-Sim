@@ -19,16 +19,19 @@ static void updateSand(int x, int y) {
   // Try to fall straight down
   if (canMoveTo(x, y + 1, Particle::SAND)) {
     swap(x, y, x, y + 1);
+    updatedSet(x, y);
     updatedSet(x, y + 1);
   }
   // Try diagonal down-left
   else if (canMoveTo(x - 1, y + 1, Particle::SAND)) {
     swap(x, y, x - 1, y + 1);
+    updatedSet(x, y);
     updatedSet(x - 1, y + 1);
   }
   // Try diagonal down-right
   else if (canMoveTo(x + 1, y + 1, Particle::SAND)) {
     swap(x, y, x + 1, y + 1);
+    updatedSet(x, y);
     updatedSet(x + 1, y + 1);
   }
 }
@@ -38,16 +41,19 @@ static void updateWater(int x, int y) {
   // Try to fall straight down (only into empty space)
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
+    updatedSet(x, y);
     updatedSet(x, y + 1);
   }
   // Try diagonal down-left (only into empty space)
   else if (isEmpty(x - 1, y + 1)) {
     swap(x, y, x - 1, y + 1);
+    updatedSet(x, y);
     updatedSet(x - 1, y + 1);
   }
   // Try diagonal down-right (only into empty space)
   else if (isEmpty(x + 1, y + 1)) {
     swap(x, y, x + 1, y + 1);
+    updatedSet(x, y);
     updatedSet(x + 1, y + 1);
   }
   // Try to flow sideways - randomize direction for balanced spreading
@@ -55,13 +61,15 @@ static void updateWater(int x, int y) {
     bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir1 = tryLeftFirst ? -1 : 1;
     int dir2 = tryLeftFirst ? 1 : -1;
-    
+
     if (isEmpty(x + dir1, y)) {
       swap(x, y, x + dir1, y);
+      updatedSet(x, y);
       updatedSet(x + dir1, y);
     }
     else if (isEmpty(x + dir2, y)) {
       swap(x, y, x + dir2, y);
+      updatedSet(x, y);
       updatedSet(x + dir2, y);
     }
   }
@@ -71,6 +79,7 @@ static void updateWater(int x, int y) {
 static void updateStone(int x, int y) {
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
+    updatedSet(x, y);
     updatedSet(x, y + 1);
   }
 }
@@ -97,16 +106,19 @@ static void updateLava(int x, int y) {
   // Lava flows like water but slower
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
+    updatedSet(x, y);
     updatedSet(x, y + 1);
   }
   // Try diagonal down-left
   else if (isEmpty(x - 1, y + 1)) {
     swap(x, y, x - 1, y + 1);
+    updatedSet(x, y);
     updatedSet(x - 1, y + 1);
   }
   // Try diagonal down-right
   else if (isEmpty(x + 1, y + 1)) {
     swap(x, y, x + 1, y + 1);
+    updatedSet(x, y);
     updatedSet(x + 1, y + 1);
   }
   // Occasionally flow sideways
@@ -115,6 +127,7 @@ static void updateLava(int x, int y) {
     int dir = tryLeftFirst ? -1 : 1;
     if (isEmpty(x + dir, y)) {
       swap(x, y, x + dir, y);
+      updatedSet(x, y);
       updatedSet(x + dir, y);
     }
   }
