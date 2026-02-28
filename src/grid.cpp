@@ -62,8 +62,8 @@ bool canMoveTo(int x, int y, Particle type) {
   // Air can always be moved into
   if (target == Particle::AIR) return true;
   
-  // Sand can displace water
-  if (type == Particle::SAND && target == Particle::WATER) return true;
+  // Sand and Ice can displace water
+  if ((type == Particle::SAND || type == Particle::ICE) && target == Particle::WATER) return true;
   
   return false;
 }

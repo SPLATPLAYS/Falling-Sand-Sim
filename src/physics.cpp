@@ -53,12 +53,14 @@ static void propagateTemperature() {
       const int fineY0 = cy * TEMP_SCALE;
       bool hasLava  = false;
       bool hasWater = false;
+      bool hasIce   = false;
       int  wallCount = 0;
       int  airCount  = 0;
       for (int dy = 0; dy < TEMP_SCALE; dy++) {
         for (int dx = 0; dx < TEMP_SCALE; dx++) {
           Particle p = grid[fineY0 + dy][fineX0 + dx];
           if      (p == Particle::LAVA)  { hasLava = true; }
+          else if (p == Particle::ICE)   { hasIce  = true; }
           else if (p == Particle::WALL)  { wallCount++; }
           else if (p == Particle::WATER) { hasWater = true; }
           else if (p == Particle::AIR)   { airCount++; }
@@ -71,6 +73,9 @@ static void propagateTemperature() {
       } else if (allWall) {
         // Entirely-wall tile: thermal insulator, always ambient.
         temperature[cy][cx] = TEMP_AMBIENT;
+      } else if (hasIce) {
+        // ICE is a continuous cold source — pins tile to minimum cold.
+        temperature[cy][cx] = TEMP_ICE_SURFACE;
       } else {
         // Context-aware cooling:
         //  • Water present  → aggressively cool toward TEMP_COLD
@@ -134,6 +139,13 @@ static void updateSand(int x, int y) {
 
 // Update water particle
 static void updateWater(int x, int y) {
+  // Temperature: freezing cold converts water to ice
+  if (tempGet(x, y) <= TEMP_FREEZE_WATER && (xorshift32() & 0x3u) == 0) {
+    grid[y][x] = Particle::ICE;
+    tempSet(x, y, TEMP_ICE_SURFACE);
+    return;
+  }
+
   // Temperature: high heat evaporates water (range effect via coarse grid)
   if (tempGet(x, y) >= TEMP_HOT && (xorshift32() & 0x7u) == 0) {
     grid[y][x] = Particle::AIR;
@@ -194,6 +206,35 @@ static void updateStone(int x, int y) {
     updatedSet(x, y + 1);
   }
 }
+// Update ice particle — falls like sand, melts to water in warmth
+static void updateIce(int x, int y) {
+  // Temperature: warmth melts ice back to water
+  if (tempGet(x, y) >= TEMP_ICE_MELT && (xorshift32() & 0x7u) == 0) {
+    grid[y][x] = Particle::WATER;
+    tempSet(x, y, TEMP_COLD);
+    return;
+  }
+
+  // Try to fall straight down (can displace water)
+  if (canMoveTo(x, y + 1, Particle::ICE)) {
+    swap(x, y, x, y + 1);
+    updatedSet(x, y);
+    updatedSet(x, y + 1);
+  }
+  // Try diagonal down-left
+  else if (canMoveTo(x - 1, y + 1, Particle::ICE)) {
+    swap(x, y, x - 1, y + 1);
+    updatedSet(x, y);
+    updatedSet(x - 1, y + 1);
+  }
+  // Try diagonal down-right
+  else if (canMoveTo(x + 1, y + 1, Particle::ICE)) {
+    swap(x, y, x + 1, y + 1);
+    updatedSet(x, y);
+    updatedSet(x + 1, y + 1);
+  }
+}
+
 static void updateLava(int x, int y) {
   // Isolated lava (no adjacent lava cell) slowly solidifies into stone,
   // modelling a thin tendril of lava losing heat to its surroundings.
@@ -227,6 +268,9 @@ static void updateLava(int x, int y) {
           grid[ny][nx] = Particle::STONE;
         } else if (grid[ny][nx] == Particle::WATER) {
           grid[ny][nx] = Particle::AIR;
+        } else if (grid[ny][nx] == Particle::ICE) {
+          grid[ny][nx] = Particle::WATER;  // Lava melts ice
+          tempSet(nx, ny, TEMP_AMBIENT);
         } else if (grid[ny][nx] == Particle::PLANT) {
           grid[ny][nx] = Particle::AIR;  // Burn plant
         }
@@ -366,6 +410,9 @@ ILRAM_FUNC void simulate() {
           break;
         case Particle::PLANT:
           updatePlant(x, y);
+          break;
+        case Particle::ICE:
+          updateIce(x, y);
           break;
         default:
           break;

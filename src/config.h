@@ -20,7 +20,8 @@ enum class Particle : uint8_t {
   STONE,
   WALL,
   LAVA,
-  PLANT
+  PLANT,
+  ICE
 };
 
 // Color definitions (RGB565 format)
@@ -31,6 +32,7 @@ constexpr uint16_t COLOR_STONE = 0x7BEF;   // Gray
 constexpr uint16_t COLOR_WALL = 0x4208;    // Dark gray
 constexpr uint16_t COLOR_LAVA = 0xF800;    // Bright red-orange
 constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
+constexpr uint16_t COLOR_ICE   = 0xAFFF;   // Pale icy cyan-blue
 constexpr uint16_t COLOR_UI_AIR = 0xF81F;  // Bright pink (magenta) for UI display
 constexpr uint16_t COLOR_HIGHLIGHT = 0xFFFF; // White
 
@@ -44,12 +46,12 @@ constexpr int UI_HEIGHT = 16;
 constexpr int SWATCH_SIZE = 16;
 constexpr int SWATCH_SPACING = 20;
 constexpr int UI_START_X = 10;
-constexpr int PARTICLE_TYPE_COUNT = 7;
+constexpr int PARTICLE_TYPE_COUNT = 8;
 
 // Brush size slider layout (placed after particle swatches in the UI bar)
-// Swatches occupy x = 10 to 10 + 7*20 = 150; slider starts at 155
-constexpr int BRUSH_SLIDER_DIGIT_X  = 155; // X of brush-size digit
-constexpr int BRUSH_SLIDER_TRACK_X  = 165; // X where slider track begins
+// Swatches occupy x = 10 to 10 + 8*20 = 170; slider starts at 172
+constexpr int BRUSH_SLIDER_DIGIT_X  = 172; // X of brush-size digit
+constexpr int BRUSH_SLIDER_TRACK_X  = 182; // X where slider track begins
 constexpr int BRUSH_SLIDER_TRACK_W  = 80;  // Pixel width of track
 constexpr int BRUSH_SLIDER_HANDLE_W = 6;   // Pixel width of handle
 
@@ -78,12 +80,14 @@ constexpr int FALL_SPEED_STONE = 1;  // Heavy - falls fastest
 constexpr int FALL_SPEED_SAND = 2;   // Medium - normal fall speed
 constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
 constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
+constexpr int FALL_SPEED_ICE  = 2;   // Solid - falls like sand
 
 // Enforce power-of-2 constraint at compile time
 static_assert((FALL_SPEED_STONE & (FALL_SPEED_STONE - 1)) == 0, "FALL_SPEED_STONE must be a power of 2");
 static_assert((FALL_SPEED_SAND  & (FALL_SPEED_SAND  - 1)) == 0, "FALL_SPEED_SAND must be a power of 2");
 static_assert((FALL_SPEED_WATER & (FALL_SPEED_WATER - 1)) == 0, "FALL_SPEED_WATER must be a power of 2");
 static_assert((FALL_SPEED_LAVA  & (FALL_SPEED_LAVA  - 1)) == 0, "FALL_SPEED_LAVA must be a power of 2");
+static_assert((FALL_SPEED_ICE   & (FALL_SPEED_ICE   - 1)) == 0, "FALL_SPEED_ICE must be a power of 2");
 
 // Coarse temperature grid (¼ resolution: 1 cell covers 4×4 fine cells)
 constexpr int TEMP_SCALE   = 4;
@@ -108,6 +112,9 @@ constexpr uint8_t TEMP_AMBIENT = 50;      // Default/room temperature
 constexpr uint8_t TEMP_COLD = 20;         // Cold temperature
 constexpr uint8_t TEMP_HOT = 200;         // Hot temperature
 constexpr uint8_t TEMP_LAVA = 255;        // Maximum temperature (lava)
+constexpr uint8_t TEMP_ICE_SURFACE = 5;   // Temperature ICE pins its coarse tile to
+constexpr uint8_t TEMP_FREEZE_WATER = 12; // Water freezes to ICE at or below this temp
+constexpr uint8_t TEMP_ICE_MELT = 65;     // ICE melts to water at or above this temp
 
 // Coarse-tile cooling rates (used in propagateTemperature Step 2)
 // Water-occupied tiles cool by TEMP_WATER_COOL_RATE per tick toward TEMP_COLD.

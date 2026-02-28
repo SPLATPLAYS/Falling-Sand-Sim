@@ -79,7 +79,7 @@ bool handleInput() {
       bool touchedUI = false;
       if (touchY >= SCREEN_HEIGHT - UI_HEIGHT) {
         // Check particle swatches
-        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::AIR};
+        Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::ICE, Particle::AIR};
         for (int j = 0; j < PARTICLE_TYPE_COUNT; j++) {
           int x = UI_START_X + j * SWATCH_SPACING;
           if (touchX >= x && touchX < x + SWATCH_SIZE) {

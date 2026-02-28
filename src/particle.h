@@ -12,6 +12,7 @@ inline uint16_t getParticleColor(Particle p) {
     case Particle::WALL: return COLOR_WALL;
     case Particle::LAVA: return COLOR_LAVA;
     case Particle::PLANT: return COLOR_PLANT;
+    case Particle::ICE:   return COLOR_ICE;
     default: return COLOR_AIR;
   }
 }
@@ -23,6 +24,7 @@ inline int getFallSpeed(Particle p) {
     case Particle::SAND: return FALL_SPEED_SAND;
     case Particle::WATER: return FALL_SPEED_WATER;
     case Particle::LAVA: return FALL_SPEED_LAVA;
+    case Particle::ICE:  return FALL_SPEED_ICE;
     default: return 1; // Stationary particles, doesn't matter
   }
 }
@@ -36,6 +38,7 @@ inline uint8_t getParticleTemperature(Particle p) {
     case Particle::STONE: return TEMP_AMBIENT;
     case Particle::WALL: return TEMP_AMBIENT;
     case Particle::PLANT: return TEMP_AMBIENT;
+    case Particle::ICE:   return TEMP_ICE_SURFACE;  // Coldest — freezes surroundings
     case Particle::AIR: return TEMP_AMBIENT;
     default: return TEMP_AMBIENT;
   }
@@ -48,7 +51,7 @@ inline uint8_t getParticleTemperature(Particle p) {
 // AIR and WALL are left unvaried so backgrounds and structures stay clean.
 inline uint16_t getParticleColorVaried(Particle p, int x, int y) {
   uint16_t base = getParticleColor(p);
-  if (p == Particle::AIR || p == Particle::WALL) return base;
+  if (p == Particle::AIR || p == Particle::WALL || p == Particle::ICE) return base;
   // Stable, cheap hash: different primes on each axis prevent axis-aligned banding
   uint8_t v = static_cast<uint8_t>(static_cast<uint8_t>(x * 3u)
                                   ^ static_cast<uint8_t>(y * 7u));
