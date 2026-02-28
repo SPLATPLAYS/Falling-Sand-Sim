@@ -20,13 +20,17 @@ void initGrid() {
   const int UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
   for (int x = 0; x < GRID_WIDTH; x++) {
     grid[UI_BOUNDARY - 1][x] = Particle::WALL;
+    temperature[UI_BOUNDARY - 1][x] = TEMP_AMBIENT;
     grid[GRID_HEIGHT - 1][x] = Particle::WALL;
+    temperature[GRID_HEIGHT - 1][x] = TEMP_AMBIENT;
   }
   
   // Create side walls
   for (int y = 0; y < GRID_HEIGHT; y++) {
     grid[y][0] = Particle::WALL;
+    temperature[y][0] = TEMP_AMBIENT;
     grid[y][GRID_WIDTH - 1] = Particle::WALL;
+    temperature[y][GRID_WIDTH - 1] = TEMP_AMBIENT;
   }
 }
 

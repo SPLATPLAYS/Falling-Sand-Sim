@@ -27,4 +27,18 @@ inline int getFallSpeed(Particle p) {
   }
 }
 
+// Get default temperature for a particle type
+inline uint8_t getParticleTemperature(Particle p) {
+  switch (p) {
+    case Particle::LAVA: return TEMP_LAVA;      // Very hot
+    case Particle::WATER: return TEMP_COLD;     // Cool
+    case Particle::SAND: return TEMP_AMBIENT;
+    case Particle::STONE: return TEMP_AMBIENT;
+    case Particle::WALL: return TEMP_AMBIENT;
+    case Particle::PLANT: return TEMP_AMBIENT;
+    case Particle::AIR: return TEMP_AMBIENT;
+    default: return TEMP_AMBIENT;
+  }
+}
+
 #endif // PARTICLE_H
