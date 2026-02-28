@@ -109,4 +109,14 @@ constexpr uint8_t TEMP_COLD = 20;         // Cold temperature
 constexpr uint8_t TEMP_HOT = 200;         // Hot temperature
 constexpr uint8_t TEMP_LAVA = 255;        // Maximum temperature (lava)
 
+// Number of diffusion passes per physics tick.
+// Each pass spreads heat one coarse cell further (one coarse cell = 4 fine cells).
+// Higher = faster, more visible spread; lower = cheaper.
+constexpr int TEMP_DIFFUSION_PASSES = 4;
+
+// First coarse row that lies entirely within the UI bar.
+// Coarse tiles at cy >= this value are always pinned to TEMP_AMBIENT so heat
+// cannot bleed behind the particle-selector UI at the bottom of the screen.
+constexpr int TEMP_UI_COARSE_ROW = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE / TEMP_SCALE;
+
 #endif // CONFIG_H

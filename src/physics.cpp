@@ -19,48 +19,66 @@ static bool shouldUpdate(Particle p) {
 // so running every physics tick is negligible cost.
 static void propagateTemperature() {
   // --- Step 1: Diffusion + ambient cooling ---
-  // Blend each cell with its 4 neighbours.  To avoid a variable divisor
-  // (expensive on SH4, which has no hardware divide), weight = self×4 + up to
-  // 4 neighbours, then >> 3 (divide by 8).  Missing edge neighbours count 0.
-  for (int cy = 0; cy < TEMP_GRID_H; cy++) {
-    for (int cx = 0; cx < TEMP_GRID_W; cx++) {
-      int t = temperature[cy][cx];
-      int sum = t << 2; // self * 4
-      if (cx > 0)               sum += temperature[cy][cx - 1];
-      if (cx < TEMP_GRID_W - 1) sum += temperature[cy][cx + 1];
-      if (cy > 0)               sum += temperature[cy - 1][cx];
-      if (cy < TEMP_GRID_H - 1) sum += temperature[cy + 1][cx];
-      int avg = sum >> 3; // divide by 8
-      // Drift one step towards ambient temperature
-      if      (avg > TEMP_AMBIENT) avg--;
-      else if (avg < TEMP_AMBIENT) avg++;
-      temperature[cy][cx] = static_cast<uint8_t>(avg);
+  // Run TEMP_DIFFUSION_PASSES passes so heat spreads TEMP_DIFFUSION_PASSES
+  // coarse cells per tick — visibly flowing away from lava into neighbours.
+  // Each pass: blend with 4-neighbour average using power-of-2 divisor so
+  // the SH4 (no hardware divide) can use a cheap right-shift instead.
+  // Weights: self×4 + each present neighbour×1, then >>3 (÷8).
+  // Ambient drift runs only on the final pass to avoid over-cooling during
+  // the intermediate passes.
+  for (int pass = 0; pass < TEMP_DIFFUSION_PASSES; pass++) {
+    const bool lastPass = (pass == TEMP_DIFFUSION_PASSES - 1);
+    for (int cy = 0; cy < TEMP_GRID_H; cy++) {
+      for (int cx = 0; cx < TEMP_GRID_W; cx++) {
+        int t = temperature[cy][cx];
+        // Clamp missing edge neighbours to the cell's own value so absent
+        // borders don't artificially cool/heat edge cells (missing neighbour
+        // contributing 0 with a fixed ÷8 divisor caused cold bleeding in).
+        int tL = (cx > 0)               ? (int)temperature[cy][cx - 1] : t;
+        int tR = (cx < TEMP_GRID_W - 1) ? (int)temperature[cy][cx + 1] : t;
+        int tU = (cy > 0)               ? (int)temperature[cy - 1][cx] : t;
+        int tD = (cy < TEMP_GRID_H - 1) ? (int)temperature[cy + 1][cx] : t;
+        // Always exactly 8 contributions → safe power-of-2 shift
+        int avg = ((t << 2) + tL + tR + tU + tD) >> 3;
+        // Drift one step towards ambient only on the final pass
+        if (lastPass) {
+          if      (avg > TEMP_AMBIENT) avg--;
+          else if (avg < TEMP_AMBIENT) avg++;
+        }
+        temperature[cy][cx] = static_cast<uint8_t>(avg);
+      }
     }
   }
 
   // --- Step 2: Inject sources / sinks from actual particles ---
-  // Lava pins its coarse tile to TEMP_LAVA; water gradually cools its tile.
-  for (int cy = 0; cy < TEMP_GRID_H; cy++) {
+  // Only process coarse rows above the UI zone; rows at or below
+  // TEMP_UI_COARSE_ROW are always pinned to TEMP_AMBIENT (cleared below).
+  for (int cy = 0; cy < TEMP_UI_COARSE_ROW; cy++) {
     for (int cx = 0; cx < TEMP_GRID_W; cx++) {
       const int fineX0 = cx * TEMP_SCALE;
       const int fineY0 = cy * TEMP_SCALE;
       bool hasLava   = false;
       bool hasWater  = false;
-      bool hasWall   = false; // any WALL cell → thermal barrier
+      int  wallCount = 0; // count wall cells in this coarse tile
       for (int dy = 0; dy < TEMP_SCALE; dy++) {
         for (int dx = 0; dx < TEMP_SCALE; dx++) {
           Particle p = grid[fineY0 + dy][fineX0 + dx];
           if (p == Particle::LAVA)  { hasLava = true; break; }
-          if (p == Particle::WALL)    hasWall  = true;
+          if (p == Particle::WALL)    wallCount++;
           if (p == Particle::WATER)   hasWater = true;
         }
         if (hasLava) break;
       }
+      // A tile is a thermal barrier only when EVERY fine cell is a wall
+      // (i.e. a solid, player-built wall block).  Tiles that merely touch a
+      // boundary wall on one edge still contain live cells and must not have
+      // their temperature wiped — that was causing the left/right columns to
+      // be permanently cold regardless of nearby lava.
+      const bool allWall = (wallCount == TEMP_SCALE * TEMP_SCALE);
       if (hasLava) {
         temperature[cy][cx] = TEMP_LAVA;
-      } else if (hasWall) {
-        // Coarse cell contains a wall — act as thermal insulator so heat
-        // cannot bleed through boundary/player walls or into the UI zone.
+      } else if (allWall) {
+        // Entirely-wall tile: act as thermal insulator, pin to ambient.
         temperature[cy][cx] = TEMP_AMBIENT;
       } else if (hasWater && temperature[cy][cx] > TEMP_COLD) {
         temperature[cy][cx]--; // water slowly cools its coarse tile
@@ -69,6 +87,12 @@ static void propagateTemperature() {
       // drifts them toward ambient gradually.
     }
   }
+
+  // Pin UI-zone coarse rows to TEMP_AMBIENT so heat never bleeds behind
+  // the particle-selector bar.  memset is used here rather than a loop so
+  // the compiler can trivially verify the write is within bounds.
+  memset(&temperature[TEMP_UI_COARSE_ROW][0], TEMP_AMBIENT,
+         (TEMP_GRID_H - TEMP_UI_COARSE_ROW) * TEMP_GRID_W);
 }
 
 // Update sand particle
