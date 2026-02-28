@@ -41,4 +41,19 @@ inline uint8_t getParticleTemperature(Particle p) {
   }
 }
 
+// Get color for a particle with a small coordinate-derived variation.
+// Perturbs the two LSBs of the green channel (bits 5-6 in RGB565) using a
+// cheap per-cell hash so that flat fills of sand/water/etc. look "grainy"
+// rather than solid blocks — zero extra memory required.
+// AIR and WALL are left unvaried so backgrounds and structures stay clean.
+inline uint16_t getParticleColorVaried(Particle p, int x, int y) {
+  uint16_t base = getParticleColor(p);
+  if (p == Particle::AIR || p == Particle::WALL) return base;
+  // Stable, cheap hash: different primes on each axis prevent axis-aligned banding
+  uint8_t v = static_cast<uint8_t>(static_cast<uint8_t>(x * 3u)
+                                  ^ static_cast<uint8_t>(y * 7u));
+  // XOR bits 5-6 (green LSBs): ±0..3 steps on green, hue is preserved
+  return base ^ (static_cast<uint16_t>(v & 0x3u) << 5);
+}
+
 #endif // PARTICLE_H
