@@ -1,16 +1,17 @@
 #include "grid.h"
+#include <cstring>
 
 // Global grid - aligned for better cache performance
 alignas(32) Particle grid[GRID_HEIGHT][GRID_WIDTH];
-alignas(32) bool updated[GRID_HEIGHT][GRID_WIDTH]; // Track which cells were updated this frame
+alignas(32) uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell
 alignas(32) uint8_t temperature[GRID_HEIGHT][GRID_WIDTH]; // Temperature value for each cell (0-255)
 
 // Initialize the grid
 void initGrid() {
+  memset(updated, 0, sizeof(updated));
   for (int y = 0; y < GRID_HEIGHT; y++) {
     for (int x = 0; x < GRID_WIDTH; x++) {
       grid[y][x] = Particle::AIR;
-      updated[y][x] = false;
       temperature[y][x] = TEMP_AMBIENT; // Initialize to ambient temperature
     }
   }

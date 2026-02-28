@@ -2,6 +2,7 @@
 #include "grid.h"
 #include "particle.h"
 #include "random.h"
+#include <cstring>
 
 // Check if a particle should update this frame based on its fall speed
 static bool shouldUpdate(Particle p) {
@@ -15,17 +16,17 @@ static void updateSand(int x, int y) {
   // Try to fall straight down
   if (canMoveTo(x, y + 1, Particle::SAND)) {
     swap(x, y, x, y + 1);
-    updated[y + 1][x] = true;
+    updatedSet(x, y + 1);
   }
   // Try diagonal down-left
   else if (canMoveTo(x - 1, y + 1, Particle::SAND)) {
     swap(x, y, x - 1, y + 1);
-    updated[y + 1][x - 1] = true;
+    updatedSet(x - 1, y + 1);
   }
   // Try diagonal down-right
   else if (canMoveTo(x + 1, y + 1, Particle::SAND)) {
     swap(x, y, x + 1, y + 1);
-    updated[y + 1][x + 1] = true;
+    updatedSet(x + 1, y + 1);
   }
 }
 
@@ -34,17 +35,17 @@ static void updateWater(int x, int y) {
   // Try to fall straight down (only into empty space)
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
-    updated[y + 1][x] = true;
+    updatedSet(x, y + 1);
   }
   // Try diagonal down-left (only into empty space)
   else if (isEmpty(x - 1, y + 1)) {
     swap(x, y, x - 1, y + 1);
-    updated[y + 1][x - 1] = true;
+    updatedSet(x - 1, y + 1);
   }
   // Try diagonal down-right (only into empty space)
   else if (isEmpty(x + 1, y + 1)) {
     swap(x, y, x + 1, y + 1);
-    updated[y + 1][x + 1] = true;
+    updatedSet(x + 1, y + 1);
   }
   // Try to flow sideways - randomize direction for balanced spreading
   else {
@@ -54,11 +55,11 @@ static void updateWater(int x, int y) {
     
     if (isEmpty(x + dir1, y)) {
       swap(x, y, x + dir1, y);
-      updated[y][x + dir1] = true;
+      updatedSet(x + dir1, y);
     }
     else if (isEmpty(x + dir2, y)) {
       swap(x, y, x + dir2, y);
-      updated[y][x + dir2] = true;
+      updatedSet(x + dir2, y);
     }
   }
 }
@@ -67,11 +68,9 @@ static void updateWater(int x, int y) {
 static void updateStone(int x, int y) {
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
-    updated[y + 1][x] = true;
+    updatedSet(x, y + 1);
   }
 }
-
-// Update lava particle
 static void updateLava(int x, int y) {
   // Check and convert adjacent particles
   // Check all 8 neighbors for sand/water/plant
@@ -95,17 +94,17 @@ static void updateLava(int x, int y) {
   // Lava flows like water but slower
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
-    updated[y + 1][x] = true;
+    updatedSet(x, y + 1);
   }
   // Try diagonal down-left
   else if (isEmpty(x - 1, y + 1)) {
     swap(x, y, x - 1, y + 1);
-    updated[y + 1][x - 1] = true;
+    updatedSet(x - 1, y + 1);
   }
   // Try diagonal down-right
   else if (isEmpty(x + 1, y + 1)) {
     swap(x, y, x + 1, y + 1);
-    updated[y + 1][x + 1] = true;
+    updatedSet(x + 1, y + 1);
   }
   // Occasionally flow sideways
   else if (xorshift32() % LAVA_FLOW_CHANCE == 0) {
@@ -113,7 +112,7 @@ static void updateLava(int x, int y) {
     int dir = tryLeftFirst ? -1 : 1;
     if (isEmpty(x + dir, y)) {
       swap(x, y, x + dir, y);
-      updated[y][x + dir] = true;
+      updatedSet(x + dir, y);
     }
   }
 }
@@ -173,11 +172,7 @@ static void updatePlant(int x, int y) {
 // Simulate one step
 void simulate() {
   // Clear update flags
-  for (int y = 0; y < GRID_HEIGHT; y++) {
-    for (int x = 0; x < GRID_WIDTH; x++) {
-      updated[y][x] = false;
-    }
-  }
+  memset(updated, 0, sizeof(updated));
   
   // Update from bottom to top, randomizing left-right order
   for (int y = GRID_HEIGHT - 2; y >= 0; y--) {
@@ -188,7 +183,7 @@ void simulate() {
       int x = scanLeft ? i : (GRID_WIDTH - 1 - i);
       
       // Skip if already updated this frame
-      if (updated[y][x]) continue;
+      if (updatedGet(x, y)) continue;
       
       Particle p = grid[y][x];
       
