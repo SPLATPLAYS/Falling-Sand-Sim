@@ -14,8 +14,64 @@ static bool shouldUpdate(Particle p) {
   return (xorshift32() & (fallSpeed - 1)) == 0;
 }
 
+// Propagate temperature: diffuse heat between coarse cells then re-inject
+// particle-sourced heat/cold.  The coarse grid is only 24×48 (1,152 cells)
+// so running every physics tick is negligible cost.
+static void propagateTemperature() {
+  // --- Step 1: Diffusion + ambient cooling ---
+  // Blend each cell with its 4 neighbours.  To avoid a variable divisor
+  // (expensive on SH4, which has no hardware divide), weight = self×4 + up to
+  // 4 neighbours, then >> 3 (divide by 8).  Missing edge neighbours count 0.
+  for (int cy = 0; cy < TEMP_GRID_H; cy++) {
+    for (int cx = 0; cx < TEMP_GRID_W; cx++) {
+      int t = temperature[cy][cx];
+      int sum = t << 2; // self * 4
+      if (cx > 0)               sum += temperature[cy][cx - 1];
+      if (cx < TEMP_GRID_W - 1) sum += temperature[cy][cx + 1];
+      if (cy > 0)               sum += temperature[cy - 1][cx];
+      if (cy < TEMP_GRID_H - 1) sum += temperature[cy + 1][cx];
+      int avg = sum >> 3; // divide by 8
+      // Drift one step towards ambient temperature
+      if      (avg > TEMP_AMBIENT) avg--;
+      else if (avg < TEMP_AMBIENT) avg++;
+      temperature[cy][cx] = static_cast<uint8_t>(avg);
+    }
+  }
+
+  // --- Step 2: Inject sources / sinks from actual particles ---
+  // Lava pins its coarse tile to TEMP_LAVA; water gradually cools its tile.
+  for (int cy = 0; cy < TEMP_GRID_H; cy++) {
+    for (int cx = 0; cx < TEMP_GRID_W; cx++) {
+      const int fineX0 = cx * TEMP_SCALE;
+      const int fineY0 = cy * TEMP_SCALE;
+      bool hasLava  = false;
+      bool hasWater = false;
+      for (int dy = 0; dy < TEMP_SCALE; dy++) {
+        for (int dx = 0; dx < TEMP_SCALE; dx++) {
+          Particle p = grid[fineY0 + dy][fineX0 + dx];
+          if (p == Particle::LAVA)  { hasLava  = true; break; }
+          if (p == Particle::WATER)   hasWater = true;
+        }
+        if (hasLava) break;
+      }
+      if (hasLava) {
+        temperature[cy][cx] = TEMP_LAVA;
+      } else if (hasWater && temperature[cy][cx] > TEMP_COLD) {
+        temperature[cy][cx]--; // water slowly cools its coarse tile
+      }
+    }
+  }
+}
+
 // Update sand particle
 static void updateSand(int x, int y) {
+  // Temperature: sustained heat (from nearby lava) converts sand to stone
+  if (tempGet(x, y) >= TEMP_HOT && (xorshift32() & 0xFu) == 0) {
+    grid[y][x] = Particle::STONE;
+    tempSet(x, y, TEMP_AMBIENT);
+    return;
+  }
+
   // Try to fall straight down
   if (canMoveTo(x, y + 1, Particle::SAND)) {
     swap(x, y, x, y + 1);
@@ -38,6 +94,13 @@ static void updateSand(int x, int y) {
 
 // Update water particle
 static void updateWater(int x, int y) {
+  // Temperature: high heat evaporates water (range effect via coarse grid)
+  if (tempGet(x, y) >= TEMP_HOT && (xorshift32() & 0x7u) == 0) {
+    grid[y][x] = Particle::AIR;
+    tempSet(x, y, TEMP_AMBIENT);
+    return;
+  }
+
   // Try to fall straight down (only into empty space)
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
@@ -135,6 +198,12 @@ static void updateLava(int x, int y) {
 
 // Update plant particle
 static void updatePlant(int x, int y) {
+  // Temperature: sustained heat burns plant (range effect via coarse grid)
+  if (tempGet(x, y) >= TEMP_HOT && (xorshift32() & 0x3u) == 0) {
+    grid[y][x] = Particle::AIR;
+    return;
+  }
+
   // Check for lava in adjacent cells - plant burns
   for (int dy = -1; dy <= 1; dy++) {
     for (int dx = -1; dx <= 1; dx++) {
@@ -189,7 +258,10 @@ static void updatePlant(int x, int y) {
 ILRAM_FUNC void simulate() {
   // Clear update flags
   memset(updated, 0, sizeof(updated));
-  
+
+  // Propagate temperature (coarse 24×48 grid — cheap every frame)
+  propagateTemperature();
+
   // Update from bottom to top, randomizing left-right order
   for (int y = GRID_HEIGHT - 2; y >= 0; y--) {
     // Alternate scan direction for more natural behavior
