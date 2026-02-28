@@ -61,4 +61,10 @@ constexpr int FALL_SPEED_SAND = 2;   // Medium - normal fall speed
 constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
 constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
 
+// Temperature constants (0-255 scale)
+constexpr uint8_t TEMP_AMBIENT = 50;      // Default/room temperature
+constexpr uint8_t TEMP_COLD = 20;         // Cold temperature
+constexpr uint8_t TEMP_HOT = 200;         // Hot temperature
+constexpr uint8_t TEMP_LAVA = 255;        // Maximum temperature (lava)
+
 #endif // CONFIG_H

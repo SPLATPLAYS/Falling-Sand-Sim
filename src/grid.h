@@ -6,6 +6,7 @@
 // Global grid - aligned for better cache performance
 extern Particle grid[GRID_HEIGHT][GRID_WIDTH];
 extern bool updated[GRID_HEIGHT][GRID_WIDTH]; // Track which cells were updated this frame
+extern uint8_t temperature[GRID_HEIGHT][GRID_WIDTH]; // Temperature value for each cell (0-255)
 
 // Initialize the grid
 void initGrid();
