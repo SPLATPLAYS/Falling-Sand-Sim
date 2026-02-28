@@ -14,7 +14,7 @@ static int frameIndex = 0;
 static uint32_t lastFrameTime = 0;
 static float currentFPS = 0.0f;
 
-// External reference to selected particle (from main.cpp)
+// External reference to selected particle (from input.cpp)
 extern Particle selectedParticle;
 
 // Simple cycle counter for timing (using clock())
