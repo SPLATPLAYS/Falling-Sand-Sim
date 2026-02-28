@@ -12,23 +12,12 @@
 
 #include "config.h"
 #include "particle.h"
+#include "random.h"
 
 APP_NAME("Falling Sand")
 APP_AUTHOR("SPLATPLAYS")
 APP_DESCRIPTION("A falling sand simulator with multiple particle types")
 APP_VERSION("1.0.0")
-
-// XorShift32 PRNG - fast and lightweight for embedded systems
-static uint32_t xorshift_state = 0x12345678;
-
-inline uint32_t xorshift32() {
-  uint32_t x = xorshift_state;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-  xorshift_state = x;
-  return x;
-}
 
 // Global grid - aligned for better cache performance
 alignas(32) Particle grid[GRID_HEIGHT][GRID_WIDTH];
