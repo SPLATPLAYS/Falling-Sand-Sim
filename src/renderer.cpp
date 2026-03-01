@@ -185,10 +185,10 @@ int startMenuSettingsBtnX = 0, startMenuSettingsBtnY = 0, startMenuSettingsBtnW 
 int startMenuExitBtnX = 0,     startMenuExitBtnY = 0,     startMenuExitBtnW = 0,     startMenuExitBtnH = 0;
 
 // ---------------------------------------------------------------------------
-// 5×7 uppercase letter font (index 0='A' .. 25='Z', 26=space, 27='+', 28='>')
+// 5×7 uppercase letter font (index 0='A' .. 25='Z', 26=space, 27='+', 28='>', 29='-')
 // Each entry is 7 rows; each row is a 5-bit mask (MSB = leftmost column).
 // ---------------------------------------------------------------------------
-static const uint8_t letterFont[29][7] = {
+static const uint8_t letterFont[30][7] = {
   {0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}, // A
   {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E}, // B
   {0x0E,0x11,0x10,0x10,0x10,0x11,0x0E}, // C
@@ -218,6 +218,7 @@ static const uint8_t letterFont[29][7] = {
   {0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // space
   {0x00,0x04,0x04,0x1F,0x04,0x04,0x00}, // + (index 27)
   {0x10,0x08,0x04,0x02,0x04,0x08,0x10}, // > (index 28)
+  {0x00,0x00,0x00,0x1F,0x00,0x00,0x00}, // - (index 29)
 };
 
 // Draw a single character at pixel (x,y), each font pixel rendered as scale×scale.
@@ -232,6 +233,7 @@ static void drawChar(uint16_t* vram, int x, int y, char c, uint16_t color, int s
   else if (c >= 'a' && c <= 'z') idx = c - 'a';
   else if (c == '+') idx = 27;
   else if (c == '>') idx = 28;
+  else if (c == '-') idx = 29;
   else idx = 26; // space / unknown
 
   for (int row = 0; row < 7; row++) {
