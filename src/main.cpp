@@ -56,6 +56,9 @@ int main(int argc, char **argv, char **envp) {
         for (int i = 0; i < (int)(width * height); i++) vramPtr2[i] = 0x0000;
         LCD_Refresh();
         inMenu = false; // proceed to game
+      } else if (result == 2) {
+        // Settings screen placeholder — redraw menu and keep waiting
+        (void)result;
       } else if (result == -1) {
         return 0; // exit app from start menu
       }

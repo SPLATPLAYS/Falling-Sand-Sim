@@ -66,7 +66,7 @@ static void placeParticle(int gridX, int gridY) {
 }
 
 // Handle start-menu input.
-// Returns 1 to start the game, -1 to exit the app, 0 to keep waiting.
+// Returns 1=Play, 2=Settings, -1=Exit, 0=nothing yet.
 int handleStartMenuInput() {
   struct Input_Event event;
   memset(&event, 0, sizeof(event));
@@ -75,15 +75,18 @@ int handleStartMenuInput() {
     if (event.type == EVENT_TOUCH) {
       int tx = event.data.touch_single.p1_x;
       int ty = event.data.touch_single.p1_y;
-      // Check if the touch is inside the Play button
-      if (tx >= startMenuButtonX && tx < startMenuButtonX + startMenuButtonW &&
-          ty >= startMenuButtonY && ty < startMenuButtonY + startMenuButtonH) {
-        return 1;
-      }
+
+      auto hit = [&](int bx, int by, int bw, int bh) {
+        return tx >= bx && tx < bx + bw && ty >= by && ty < by + bh;
+      };
+
+      if (hit(startMenuPlayBtnX,     startMenuPlayBtnY,     startMenuPlayBtnW,     startMenuPlayBtnH))     return 1;
+      if (hit(startMenuSettingsBtnX, startMenuSettingsBtnY, startMenuSettingsBtnW, startMenuSettingsBtnH)) return 2;
+      if (hit(startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     startMenuExitBtnH))     return -1;
     } else if (event.type == EVENT_KEY) {
       if (event.data.key.direction == KEY_PRESSED) {
-        if (event.data.key.keyCode == KEYCODE_EXE) return 1;
-        if (event.data.key.keyCode == KEYCODE_POWER_CLEAR) return -1;
+        if (event.data.key.keyCode == KEYCODE_EXE)          return 1;
+        if (event.data.key.keyCode == KEYCODE_POWER_CLEAR)  return -1;
       }
     } else if (event.type == EVENT_ACTBAR_ESC) {
       return -1;

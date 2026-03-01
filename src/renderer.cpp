@@ -169,11 +169,10 @@ static void drawBrushSlider(uint16_t* vram) {
   }
 }
 
-// Start menu play-button bounds (updated by drawStartMenu)
-int startMenuButtonX = 0;
-int startMenuButtonY = 0;
-int startMenuButtonW = 0;
-int startMenuButtonH = 0;
+// Start menu button bounds (updated by drawStartMenu)
+int startMenuPlayBtnX = 0,     startMenuPlayBtnY = 0,     startMenuPlayBtnW = 0,     startMenuPlayBtnH = 0;
+int startMenuSettingsBtnX = 0, startMenuSettingsBtnY = 0, startMenuSettingsBtnW = 0, startMenuSettingsBtnH = 0;
+int startMenuExitBtnX = 0,     startMenuExitBtnY = 0,     startMenuExitBtnW = 0,     startMenuExitBtnH = 0;
 
 // ---------------------------------------------------------------------------
 // 5×7 uppercase letter font (index 0='A' .. 25='Z', 26=space)
@@ -251,62 +250,70 @@ static int textPixelWidth(const char* str, int scale) {
   return len * (5 * scale + scale) - scale; // remove trailing inter-char gap
 }
 
-// Draw the start menu screen (black background, centred title + play button).
+// Draw a filled, bordered button and store its bounds in the out-params.
+static void drawMenuButton(uint16_t* vram, const char* label, int scale,
+                           int centreX, int topY,
+                           int& outX, int& outY, int& outW, int& outH) {
+  const int padX  = 20;
+  const int padY  = 8;
+  const int charH = 7 * scale;
+  int labelW = textPixelWidth(label, scale);
+  int btnW   = labelW + padX * 2;
+  int btnH   = charH  + padY * 2;
+  int btnX   = centreX - btnW / 2;
+  int btnY   = topY;
+
+  outX = btnX; outY = btnY; outW = btnW; outH = btnH;
+
+  // Fill
+  for (int py = btnY; py < btnY + btnH; py++)
+    for (int px = btnX; px < btnX + btnW; px++)
+      if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
+        vram[py * lcdWidth + px] = COLOR_WALL;
+
+  // Border
+  for (int px = btnX; px < btnX + btnW; px++) {
+    if (btnY           >= 0 && btnY           < lcdHeight) vram[btnY           * lcdWidth + px] = COLOR_HIGHLIGHT;
+    if (btnY + btnH - 1 >= 0 && btnY + btnH - 1 < lcdHeight) vram[(btnY+btnH-1) * lcdWidth + px] = COLOR_HIGHLIGHT;
+  }
+  for (int py = btnY; py < btnY + btnH; py++) {
+    if (btnX           >= 0 && btnX           < lcdWidth) vram[py * lcdWidth + btnX]           = COLOR_HIGHLIGHT;
+    if (btnX + btnW - 1 >= 0 && btnX + btnW - 1 < lcdWidth) vram[py * lcdWidth + btnX+btnW-1]  = COLOR_HIGHLIGHT;
+  }
+
+  // Centred label
+  drawText(vram, btnX + (btnW - labelW) / 2, btnY + (btnH - charH) / 2, label, COLOR_HIGHLIGHT, scale);
+}
+
+// Draw the start menu (black background, centred title + PLAY / SETTINGS / EXIT).
 void drawStartMenu(uint16_t* vram) {
   // --- Background ---
   for (int i = 0; i < lcdWidth * lcdHeight; i++)
-    vram[i] = COLOR_AIR; // black
+    vram[i] = COLOR_AIR;
 
-  const int scale = 2; // font scale factor
-  const int charH = 7 * scale; // character height in pixels
+  const int scale  = 2;
+  const int centreX = lcdWidth / 2;
 
   // --- Title: "FALLING SAND" ---
   const char* title = "FALLING SAND";
   int titleW = textPixelWidth(title, scale);
-  int titleX = (lcdWidth  - titleW) / 2;
-  int titleY = lcdHeight / 2 - 30; // above centre
-  drawText(vram, titleX, titleY, title, COLOR_SAND, scale);
+  drawText(vram, centreX - titleW / 2, 28, title, COLOR_SAND, scale);
 
-  // --- Play button ---
-  const char* btnLabel = "PLAY";
-  int labelW  = textPixelWidth(btnLabel, scale);
-  int labelH  = charH;
+  // --- Buttons (vertically spaced below the title) ---
+  const int btnSpacing = 10; // gap between buttons
+  const int charH      = 7 * scale;
+  const int btnH       = charH + 8 * 2; // matches padY in drawMenuButton
 
-  const int btnPadX = 20;
-  const int btnPadY = 8;
-  int btnW = labelW  + btnPadX * 2;
-  int btnH = labelH  + btnPadY * 2;
-  int btnX = (lcdWidth  - btnW) / 2;
-  int btnY = lcdHeight / 2 + 10; // below centre
+  int playY     = 70;
+  int settingsY = playY + btnH + btnSpacing;
+  int exitY     = lcdHeight - btnH - 7; // pinned to bottom with a small margin
 
-  // Store for hit-testing in handleStartMenuInput
-  startMenuButtonX = btnX;
-  startMenuButtonY = btnY;
-  startMenuButtonW = btnW;
-  startMenuButtonH = btnH;
-
-  // Fill button with dark background
-  for (int py = btnY; py < btnY + btnH; py++) {
-    for (int px = btnX; px < btnX + btnW; px++) {
-      if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
-        vram[py * lcdWidth + px] = COLOR_WALL;
-    }
-  }
-
-  // Draw white border (1 px)
-  for (int px = btnX; px < btnX + btnW; px++) {
-    if (btnY     >= 0 && btnY     < lcdHeight) vram[btnY              * lcdWidth + px] = COLOR_HIGHLIGHT;
-    if (btnY+btnH-1 >= 0 && btnY+btnH-1 < lcdHeight) vram[(btnY+btnH-1) * lcdWidth + px] = COLOR_HIGHLIGHT;
-  }
-  for (int py = btnY; py < btnY + btnH; py++) {
-    if (btnX       >= 0 && btnX       < lcdWidth) vram[py * lcdWidth + btnX]           = COLOR_HIGHLIGHT;
-    if (btnX+btnW-1 >= 0 && btnX+btnW-1 < lcdWidth) vram[py * lcdWidth + btnX+btnW-1]  = COLOR_HIGHLIGHT;
-  }
-
-  // Draw centred button label
-  int labelX = btnX + (btnW - labelW) / 2;
-  int labelY = btnY + (btnH - labelH) / 2;
-  drawText(vram, labelX, labelY, btnLabel, COLOR_HIGHLIGHT, scale);
+  drawMenuButton(vram, "PLAY",     scale, centreX, playY,
+                 startMenuPlayBtnX,     startMenuPlayBtnY,     startMenuPlayBtnW,     startMenuPlayBtnH);
+  drawMenuButton(vram, "SETTINGS", scale, centreX, settingsY,
+                 startMenuSettingsBtnX, startMenuSettingsBtnY, startMenuSettingsBtnW, startMenuSettingsBtnH);
+  drawMenuButton(vram, "EXIT",     scale, centreX, exitY,
+                 startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     startMenuExitBtnH);
 }
 
 // Draw the grid to screen - optimized for faster VRAM writes
