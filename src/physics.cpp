@@ -274,15 +274,19 @@ static void updateLava(int x, int y) {
       if (isValid(nx, ny)) {
         if (grid[ny][nx] == Particle::SAND) {
           grid[ny][nx] = Particle::STONE;
+          updatedSet(nx, ny);
         } else if (grid[ny][nx] == Particle::WATER) {
           grid[ny][nx] = Particle::STEAM;  // Lava quenches water → hot steam
           tempSet(nx, ny, TEMP_STEAM);
+          updatedSet(nx, ny);
         } else if (grid[ny][nx] == Particle::ICE) {
           grid[ny][nx] = Particle::WATER;  // Lava melts ice
           tempSet(nx, ny, TEMP_AMBIENT);
+          updatedSet(nx, ny);
         } else if (grid[ny][nx] == Particle::PLANT) {
           grid[ny][nx] = Particle::STEAM;  // Burning plant → steam/smoke
           tempSet(nx, ny, TEMP_STEAM);
+          updatedSet(nx, ny);
         }
       }
     }
