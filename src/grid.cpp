@@ -1,4 +1,5 @@
 #include "grid.h"
+#include "config.h"
 #include <cstring>
 
 // Grid split across on-chip X/Y RAM — section names match the SDK linker script (same as CPBoy)
@@ -27,17 +28,10 @@ void initGrid() {
       grid[y][x] = Particle::AIR;
     }
   }
-  
-  // Create bottom wall above the UI — keep particles above GRID_UI_BOUNDARY
+
+  // Create bottom wall
   for (int x = 0; x < GRID_WIDTH; x++) {
     grid[GRID_UI_BOUNDARY - 1][x] = Particle::WALL;
-    grid[GRID_HEIGHT - 1][x] = Particle::WALL;
-  }
-  
-  // Create side walls
-  for (int y = 0; y < GRID_HEIGHT; y++) {
-    grid[y][0] = Particle::WALL;
-    grid[y][GRID_WIDTH - 1] = Particle::WALL;
   }
 }
 
@@ -54,6 +48,7 @@ bool isEmpty(int x, int y) {
 // Check if a particle can move to a position
 bool canMoveTo(int x, int y, Particle type) {
   if (!isValid(x, y)) return false;
+  if (y >= GRID_UI_BOUNDARY) return false;
   
   Particle target = grid[y][x];
   
