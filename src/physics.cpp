@@ -162,24 +162,31 @@ static void updateWater(int x, int y) {
     swap(x, y, x, y + 1);
     updatedSet(x, y);
     updatedSet(x, y + 1);
+    return;
   }
-  // Try diagonal down-left (only into empty space)
-  else if (isEmpty(x - 1, y + 1)) {
-    swap(x, y, x - 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x - 1, y + 1);
+  // Try diagonals — randomize which side is tried first to avoid left-bias
+  {
+    bool tryLeftFirst = (xorshift32() & 1) == 0;
+    int d1 = tryLeftFirst ? -1 : 1;
+    int d2 = -d1;
+    if (isEmpty(x + d1, y + 1)) {
+      swap(x, y, x + d1, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d1, y + 1);
+      return;
+    }
+    if (isEmpty(x + d2, y + 1)) {
+      swap(x, y, x + d2, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d2, y + 1);
+      return;
+    }
   }
-  // Try diagonal down-right (only into empty space)
-  else if (isEmpty(x + 1, y + 1)) {
-    swap(x, y, x + 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x + 1, y + 1);
-  }
-  // Try to flow sideways - randomize direction for balanced spreading
-  else {
+  // Blocked below — try to flow sideways; randomize direction for balanced spreading
+  {
     bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir1 = tryLeftFirst ? -1 : 1;
-    int dir2 = tryLeftFirst ? 1 : -1;
+    int dir2 = -dir1;
 
     if (isEmpty(x + dir1, y)) {
       swap(x, y, x + dir1, y);
@@ -370,15 +377,28 @@ static void updateAcid(int x, int y) {
     swap(x, y, x, y + 1);
     updatedSet(x, y);
     updatedSet(x, y + 1);
-  } else if (isEmpty(x - 1, y + 1)) {
-    swap(x, y, x - 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x - 1, y + 1);
-  } else if (isEmpty(x + 1, y + 1)) {
-    swap(x, y, x + 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x + 1, y + 1);
-  } else {
+    return;
+  }
+  // Try diagonals — randomize which side is tried first to avoid left-bias
+  {
+    bool tryLeftFirst = (xorshift32() & 1) == 0;
+    int d1 = tryLeftFirst ? -1 : 1;
+    int d2 = -d1;
+    if (isEmpty(x + d1, y + 1)) {
+      swap(x, y, x + d1, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d1, y + 1);
+      return;
+    }
+    if (isEmpty(x + d2, y + 1)) {
+      swap(x, y, x + d2, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d2, y + 1);
+      return;
+    }
+  }
+  // Blocked below — spread sideways
+  {
     bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir1 = tryLeftFirst ? -1 : 1;
     int dir2 = -dir1;
