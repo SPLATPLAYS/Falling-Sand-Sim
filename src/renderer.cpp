@@ -562,7 +562,7 @@ ILRAM_FUNC void drawGrid(uint16_t* vram) {
 
   // Draw "EXE BACK" hint — right of the brush slider, in the UI bar
   {
-    const int hintX = 268;
+    const int hintX = 262;
     const int hintY = SCREEN_HEIGHT - UI_HEIGHT + (UI_HEIGHT - 7) / 2;
     drawText(vram, hintX, hintY, "EXE BACK", COLOR_WALL, 1);
   }

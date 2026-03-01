@@ -150,10 +150,10 @@ static void updateWater(int x, int y) {
     return;
   }
 
-  // Temperature: high heat evaporates water (range effect via coarse grid)
+  // Temperature: high heat evaporates water — emits hot steam
   if (tempGet(x, y) >= TEMP_HOT && (xorshift32() & 0x7u) == 0) {
-    grid[y][x] = Particle::AIR;
-    tempSet(x, y, TEMP_AMBIENT);
+    grid[y][x] = Particle::STEAM;
+    tempSet(x, y, TEMP_STEAM);   // steam carries the heat away
     return;
   }
 
@@ -275,12 +275,14 @@ static void updateLava(int x, int y) {
         if (grid[ny][nx] == Particle::SAND) {
           grid[ny][nx] = Particle::STONE;
         } else if (grid[ny][nx] == Particle::WATER) {
-          grid[ny][nx] = Particle::AIR;
+          grid[ny][nx] = Particle::STEAM;  // Lava quenches water → hot steam
+          tempSet(nx, ny, TEMP_STEAM);
         } else if (grid[ny][nx] == Particle::ICE) {
           grid[ny][nx] = Particle::WATER;  // Lava melts ice
           tempSet(nx, ny, TEMP_AMBIENT);
         } else if (grid[ny][nx] == Particle::PLANT) {
-          grid[ny][nx] = Particle::AIR;  // Burn plant
+          grid[ny][nx] = Particle::STEAM;  // Burning plant → steam/smoke
+          tempSet(nx, ny, TEMP_STEAM);
         }
       }
     }
@@ -319,6 +321,53 @@ static void updateLava(int x, int y) {
       updatedSet(x, y);
       updatedSet(x + dir2, y);
     }
+  }
+}
+
+// Update steam particle: rises while hot, drifts sideways, condenses to water when cool.
+static void updateSteam(int x, int y) {
+  // Condensation: when the coarse tile has cooled to ambient-ish levels,
+  // steam probabilistically re-condenses into water.
+  if (tempGet(x, y) <= TEMP_STEAM_CONDENSE && (xorshift32() & STEAM_CONDENSE_MASK) == 0) {
+    grid[y][x] = Particle::WATER;
+    tempSet(x, y, TEMP_COLD);  // condensed water is cool
+    return;
+  }
+
+  // Try to rise straight up
+  if (y > 0 && isEmpty(x, y - 1)) {
+    swap(x, y, x, y - 1);
+    updatedSet(x, y);
+    updatedSet(x, y - 1);
+    return;
+  }
+
+  // Try diagonal rise — randomize which side is preferred
+  bool tryLeftFirst = (xorshift32() & 1) == 0;
+  int d1 = tryLeftFirst ? -1 : 1;
+  int d2 = -d1;
+  if (y > 0 && isEmpty(x + d1, y - 1)) {
+    swap(x, y, x + d1, y - 1);
+    updatedSet(x, y);
+    updatedSet(x + d1, y - 1);
+    return;
+  }
+  if (y > 0 && isEmpty(x + d2, y - 1)) {
+    swap(x, y, x + d2, y - 1);
+    updatedSet(x, y);
+    updatedSet(x + d2, y - 1);
+    return;
+  }
+
+  // Blocked above — drift sideways
+  if (isEmpty(x + d1, y)) {
+    swap(x, y, x + d1, y);
+    updatedSet(x, y);
+    updatedSet(x + d1, y);
+  } else if (isEmpty(x + d2, y)) {
+    swap(x, y, x + d2, y);
+    updatedSet(x, y);
+    updatedSet(x + d2, y);
   }
 }
 
@@ -424,6 +473,9 @@ ILRAM_FUNC void simulate() {
           break;
         case Particle::ICE:
           updateIce(x, y);
+          break;
+        case Particle::STEAM:
+          updateSteam(x, y);
           break;
         default:
           break;
