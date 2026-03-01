@@ -123,17 +123,21 @@ static void updateSand(int x, int y) {
     updatedSet(x, y);
     updatedSet(x, y + 1);
   }
-  // Try diagonal down-left
-  else if (canMoveTo(x - 1, y + 1, Particle::SAND)) {
-    swap(x, y, x - 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x - 1, y + 1);
-  }
-  // Try diagonal down-right
-  else if (canMoveTo(x + 1, y + 1, Particle::SAND)) {
-    swap(x, y, x + 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x + 1, y + 1);
+  // Try diagonals — randomize which side is tried first to avoid left-bias
+  else {
+    bool tryLeftFirst = (xorshift32() & 1) == 0;
+    int d1 = tryLeftFirst ? -1 : 1;
+    int d2 = -d1;
+    if (canMoveTo(x + d1, y + 1, Particle::SAND)) {
+      swap(x, y, x + d1, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d1, y + 1);
+    }
+    else if (canMoveTo(x + d2, y + 1, Particle::SAND)) {
+      swap(x, y, x + d2, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d2, y + 1);
+    }
   }
 }
 
@@ -221,17 +225,21 @@ static void updateIce(int x, int y) {
     updatedSet(x, y);
     updatedSet(x, y + 1);
   }
-  // Try diagonal down-left
-  else if (canMoveTo(x - 1, y + 1, Particle::ICE)) {
-    swap(x, y, x - 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x - 1, y + 1);
-  }
-  // Try diagonal down-right
-  else if (canMoveTo(x + 1, y + 1, Particle::ICE)) {
-    swap(x, y, x + 1, y + 1);
-    updatedSet(x, y);
-    updatedSet(x + 1, y + 1);
+  // Try diagonals — randomize which side is tried first to avoid left-bias
+  else {
+    bool tryLeftFirst = (xorshift32() & 1) == 0;
+    int d1 = tryLeftFirst ? -1 : 1;
+    int d2 = -d1;
+    if (canMoveTo(x + d1, y + 1, Particle::ICE)) {
+      swap(x, y, x + d1, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d1, y + 1);
+    }
+    else if (canMoveTo(x + d2, y + 1, Particle::ICE)) {
+      swap(x, y, x + d2, y + 1);
+      updatedSet(x, y);
+      updatedSet(x + d2, y + 1);
+    }
   }
 }
 
@@ -299,11 +307,17 @@ static void updateLava(int x, int y) {
   // Occasionally flow sideways (power-of-2 mask — no software divide)
   else if ((xorshift32() & (LAVA_FLOW_CHANCE - 1)) == 0) {
     bool tryLeftFirst = (xorshift32() & 1) == 0;
-    int dir = tryLeftFirst ? -1 : 1;
-    if (isEmpty(x + dir, y)) {
-      swap(x, y, x + dir, y);
+    int dir1 = tryLeftFirst ? -1 : 1;
+    int dir2 = -dir1;
+    if (isEmpty(x + dir1, y)) {
+      swap(x, y, x + dir1, y);
       updatedSet(x, y);
-      updatedSet(x + dir, y);
+      updatedSet(x + dir1, y);
+    }
+    else if (isEmpty(x + dir2, y)) {
+      swap(x, y, x + dir2, y);
+      updatedSet(x, y);
+      updatedSet(x + dir2, y);
     }
   }
 }
