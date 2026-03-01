@@ -279,22 +279,20 @@ bool handleInput() {
         initGrid();
       }
       // + key: increase brush size
-      if (event.data.key.keyCode == KEYCODE_PLUS &&
-          (event.data.key.direction == KEY_PRESSED ||
-           event.data.key.direction == KEY_HELD)) {
-        if (brushSize < BRUSH_SIZE_MAX) {
-          brushSize++;
-          if (event.data.key.direction == KEY_PRESSED) saveBrushSize();
+      if (event.data.key.keyCode == KEYCODE_PLUS) {
+        if (event.data.key.direction == KEY_PRESSED ||
+            event.data.key.direction == KEY_HELD) {
+          if (brushSize < BRUSH_SIZE_MAX) brushSize++;
         }
+        if (event.data.key.direction == KEY_RELEASED) saveBrushSize();
       }
       // - key: decrease brush size
-      if (event.data.key.keyCode == KEYCODE_MINUS &&
-          (event.data.key.direction == KEY_PRESSED ||
-           event.data.key.direction == KEY_HELD)) {
-        if (brushSize > BRUSH_SIZE_MIN) {
-          brushSize--;
-          if (event.data.key.direction == KEY_PRESSED) saveBrushSize();
+      if (event.data.key.keyCode == KEYCODE_MINUS) {
+        if (event.data.key.direction == KEY_PRESSED ||
+            event.data.key.direction == KEY_HELD) {
+          if (brushSize > BRUSH_SIZE_MIN) brushSize--;
         }
+        if (event.data.key.direction == KEY_RELEASED) saveBrushSize();
       }
       // 0 key: toggle temperature heat-map overlay
       if (event.data.key.keyCode == KEYCODE_0 &&
