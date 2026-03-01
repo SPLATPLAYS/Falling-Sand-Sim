@@ -22,7 +22,8 @@ enum class Particle : uint8_t {
   LAVA,
   PLANT,
   ICE,
-  STEAM
+  STEAM,
+  ACID
 };
 
 // Color definitions (RGB565 format)
@@ -36,6 +37,7 @@ constexpr uint16_t COLOR_PLANT = 0x07E0;   // Green
 constexpr uint16_t COLOR_ICE   = 0xAFFF;   // Pale icy cyan-blue
 constexpr uint16_t COLOR_UI_AIR = 0xF81F;  // Bright pink (magenta) for UI display
 constexpr uint16_t COLOR_STEAM  = 0xEF7D;   // Very light blue-white (hot steam)
+constexpr uint16_t COLOR_ACID   = 0x8FE0;   // Toxic yellow-green
 constexpr uint16_t COLOR_HIGHLIGHT = 0xFFFF; // White
 
 // Brush size (runtime variable, persisted via MCS)
@@ -46,9 +48,9 @@ constexpr int BRUSH_SIZE_MAX     = 9;
 // UI constants
 constexpr int UI_HEIGHT = 16;
 constexpr int SWATCH_SIZE = 16;
-constexpr int SWATCH_SPACING = 20;
+constexpr int SWATCH_SPACING = 18;  // Reduced from 20 to fit 10 particle types
 constexpr int UI_START_X = 10;
-constexpr int PARTICLE_TYPE_COUNT = 9;
+constexpr int PARTICLE_TYPE_COUNT = 10;
 
 // First grid row that falls inside the UI bar (pixels below this are UI, not simulation).
 // Equivalent to (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE — defined once to avoid
@@ -56,7 +58,7 @@ constexpr int PARTICLE_TYPE_COUNT = 9;
 constexpr int GRID_UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
 
 // Brush size slider layout (placed after particle swatches in the UI bar)
-// Swatches occupy x = 10 to 10 + 9*20 = 190; slider starts at 190
+// 10 swatches at spacing 18: last swatch ends at 10+9*18+16=188; slider starts at 190
 constexpr int BRUSH_SLIDER_DIGIT_X  = 190; // X of brush-size digit
 constexpr int BRUSH_SLIDER_TRACK_X  = 200; // X where slider track begins
 constexpr int BRUSH_SLIDER_TRACK_W  = 56;  // Pixel width of track
@@ -95,6 +97,15 @@ constexpr int FALL_SPEED_WATER = 1;  // Liquid - flows fast
 constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
 constexpr int FALL_SPEED_ICE  = 2;   // Solid - falls like sand
 constexpr int FALL_SPEED_STEAM = 2;  // Gas - rises every other frame
+constexpr int FALL_SPEED_ACID  = 1;  // Liquid - flows fast like water
+
+// Acid dissolution: checked each update against each orthogonal neighbour.
+// ACID_DISSOLVE_MASK: 1-in-(mask+1) chance to dissolve a dissolvable neighbour.
+// ACID_CONSUME_MASK:  1-in-(mask+1) chance the acid cell itself is consumed after
+//                     each successful dissolution (acid is finite).
+// Both must be power-of-2 minus 1 for the cheap bitwise AND on SH4.
+constexpr uint32_t ACID_DISSOLVE_MASK = 0x3u;  // 1-in-4 per neighbour
+constexpr uint32_t ACID_CONSUME_MASK  = 0x3u;  // 1-in-4 self-consume after reaction
 
 // Steam phase-change temperatures.
 // Steam is created at TEMP_STEAM (hot); the coarse temperature grid's air-drift
@@ -112,6 +123,7 @@ static_assert((FALL_SPEED_WATER & (FALL_SPEED_WATER - 1)) == 0, "FALL_SPEED_WATE
 static_assert((FALL_SPEED_LAVA  & (FALL_SPEED_LAVA  - 1)) == 0, "FALL_SPEED_LAVA must be a power of 2");
 static_assert((FALL_SPEED_ICE   & (FALL_SPEED_ICE   - 1)) == 0, "FALL_SPEED_ICE must be a power of 2");
 static_assert((FALL_SPEED_STEAM & (FALL_SPEED_STEAM - 1)) == 0, "FALL_SPEED_STEAM must be a power of 2");
+static_assert((FALL_SPEED_ACID  & (FALL_SPEED_ACID  - 1)) == 0, "FALL_SPEED_ACID must be a power of 2");
 static_assert((LAVA_FLOW_CHANCE    & (LAVA_FLOW_CHANCE    - 1)) == 0, "LAVA_FLOW_CHANCE must be a power of 2");
 static_assert((PLANT_GROWTH_CHANCE & (PLANT_GROWTH_CHANCE - 1)) == 0, "PLANT_GROWTH_CHANCE must be a power of 2");
 
