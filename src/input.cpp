@@ -286,7 +286,7 @@ bool handleInput() {
            event.data.key.direction == KEY_HELD)) {
         if (brushSize < BRUSH_SIZE_MAX) {
           brushSize++;
-          saveBrushSize();
+          if (event.data.key.direction == KEY_PRESSED) saveBrushSize();
         }
       }
       // - key: decrease brush size
@@ -295,7 +295,7 @@ bool handleInput() {
            event.data.key.direction == KEY_HELD)) {
         if (brushSize > BRUSH_SIZE_MIN) {
           brushSize--;
-          saveBrushSize();
+          if (event.data.key.direction == KEY_PRESSED) saveBrushSize();
         }
       }
       // 0 key: toggle temperature heat-map overlay
