@@ -23,7 +23,8 @@ enum class Particle : uint8_t {
   PLANT,
   ICE,
   STEAM,
-  ACID
+  ACID,
+  COUNT  // must remain last — used to derive PARTICLE_TYPE_COUNT
 };
 
 // Color definitions (RGB565 format)
@@ -50,7 +51,7 @@ constexpr int UI_HEIGHT = 16;
 constexpr int SWATCH_SIZE = 16;
 constexpr int SWATCH_SPACING = 18;  // Reduced from 20 to fit 10 particle types
 constexpr int UI_START_X = 10;
-constexpr int PARTICLE_TYPE_COUNT = 10;
+constexpr int PARTICLE_TYPE_COUNT = static_cast<int>(Particle::COUNT);
 
 // First grid row that falls inside the UI bar (pixels below this are UI, not simulation).
 // Equivalent to (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE — defined once to avoid
