@@ -91,18 +91,65 @@ static const uint32_t CS3WCR_TURBO_PLUS = 0x4892u;
 // BSC helpers — called from oclock_apply(), not exposed in the header
 // ---------------------------------------------------------------------------
 
-// Apply reduced SDRAM timing (safe at OS-default bus clock speed):
-//   • A3CL: reduce from CL=3 to CL=2 if the OS set CL=3; issue MRS to sync chip.
-//   • TRC:  reduce row-cycle time by one step (floor at 0).
-// 
-// IMPORTANT: call only when the CPU/bus clock is at default frequency.
-// The SH7305 memory bus scales with the FLL, so at overclock levels the
-// OS-default (conservative) BSC timing must be restored to keep SDRAM stable.
+// Apply the tightest safe SDRAM timing for the OS-default bus clock:
+//   • A3CL: reduce CL=3 → CL=2 if the OS left it at CL=3; issue MRS to sync chip.
+//   • TRC:  set to the minimum safe field value for the actual bus frequency,
+//           derived from Ptune4's raW_TRC default table (mem_test.h) with a
+//           5 % margin — replacing the previous fixed "TRC − 1" heuristic.
+//
+// IMPORTANT: must only be called when the CPU/bus clock is at the OS-default
+// frequency.  The memory bus scales linearly with the FLL; any overclock level
+// must call bsc_restore_default() before raising the clock.
+//
+// Ptune4 raW_TRC defaults and their meaning (mem_test.h):
+//   TRC field 0 (3 bus cyc): safe when Bphi <  50 MHz  (× 0.95 = 47.5 MHz)
+//   TRC field 1 (4 bus cyc): safe when Bphi <  80 MHz  (× 0.95 = 76.0 MHz)
+//   TRC field 2 (6 bus cyc): safe when Bphi < 120 MHz  (× 0.95 = 114.0 MHz)
+//   TRC field 3 (9 bus cyc): required  when Bphi ≥ 120 MHz × 0.95
+//
+// Bus frequency computation (no 64-bit arithmetic needed):
+//   Bphi = FLF × (SELXM+1) × (STC+1) × 32768 Hz / BFC_div
+//
+// FRQCR field layout (SH7305, confirmed from Ptune4 express.c):
+//   bits[29:24] = STC  → PLL multiplier = STC+1  (max 64)
+//   bits[22:20] = IFC divider field  (unused here)
+//   bits[10:8]  = BFC divider field  → BFC_div = 2^(field+1)
 static void bsc_apply_fast() {
+    // -----------------------------------------------------------------------
+    // Step 1: compute the minimum safe TRC field for the stock bus clock.
+    //
+    // Work in units of 32768 Hz to keep all arithmetic in uint32_t:
+    //   bphi_units = FLF × (SELXM+1) × (STC+1) / BFC_div
+    //              = FLF × (SELXM+1) × (STC+1) >> (BFC_fld+1)
+    //
+    // Thresholds from Ptune4 raW_TRC (5 % margin, rounded up for safety):
+    //   47.5 MHz / 32768 Hz = 1449.7 → 1450
+    //   76.0 MHz / 32768 Hz = 2319.4 → 2320
+    //  114.0 MHz / 32768 Hz = 3478.9 → 3479
+    //
+    // Max bphi_units at realistic values (FLF=1023, SELXM=0, STC=7, BFC_div=4):
+    //   1023 × 1 × 8 >> 2 = 2046 — well within uint32_t.
+    // -----------------------------------------------------------------------
+    uint32_t flf     = default_fllfrq & 0x3FFFu;
+    uint32_t selxm   = (default_fllfrq >> 14) & 1u;
+    uint32_t stc     = (default_frqcr  >> 24) & 0x3Fu;  // PLL multiplier − 1
+    uint32_t bfc_fld = (default_frqcr  >>  8) & 0x7u;   // log2(BFC_div) − 1
+
+    // BFC_div is always a power of two → right-shift replaces the division.
+    uint32_t bphi_units = (flf * (1u + selxm) * (stc + 1u)) >> (bfc_fld + 1u);
+
+    uint32_t min_trc;
+    if      (bphi_units >= 3479u) min_trc = 3u;  // ≥ 114 MHz → need 9-cycle TRC
+    else if (bphi_units >= 2320u) min_trc = 2u;  // ≥  76 MHz → need 6-cycle TRC
+    else if (bphi_units >= 1450u) min_trc = 1u;  // ≥  47 MHz → need 4-cycle TRC
+    else                          min_trc = 0u;  //  < 47 MHz → 3-cycle TRC sufficient
+
     uint32_t wcr = default_cs3wcr;
 
-    // --- CAS latency ---
-    // A3CL encoding: 0b01=CL2, 0b10=CL3  (0b00 and 0b11 are reserved/invalid)
+    // -----------------------------------------------------------------------
+    // Step 2: CAS latency — reduce CL=3 → CL=2.
+    // A3CL encoding: 0b01=CL2, 0b10=CL3 (0b00 and 0b11 are reserved/invalid).
+    // -----------------------------------------------------------------------
     uint32_t a3cl = (wcr >> 7) & 0x3u;
     if (a3cl == 2u) {
         // CL=3 → CL=2: update CS3WCR then issue MRS so the SDRAM chip latches it.
@@ -110,15 +157,18 @@ static void bsc_apply_fast() {
         *BSC_CS3WCR = wcr;
         *SDMR3_CL2 = 0;  // MRS address encodes CL=2; any write value works
     }
-    // If A3CL is already 1 (CL=2), nothing to do.
-    // Leave 0/3 (invalid) untouched rather than risk corrupting the controller.
+    // A3CL=1 (CL=2) already — nothing to do.
+    // Leave 0/3 (reserved) untouched rather than risk corrupting the controller.
 
-    // --- TRC (row cycle time) ---
-    // Reduce by one step.  No MRS needed — TRC only affects the BSC state
-    // machine, not anything the SDRAM chip tracks internally.
+    // -----------------------------------------------------------------------
+    // Step 3: TRC — tighten to the dynamic minimum.
+    // Only write if the OS value is looser than min_trc; never relax below it.
+    // No MRS command needed — TRC only affects the BSC state machine, not
+    // anything the SDRAM chip tracks internally.
+    // -----------------------------------------------------------------------
     uint32_t trc = wcr & 0x3u;
-    if (trc > 0u) {
-        wcr = (wcr & ~0x3u) | (trc - 1u);
+    if (trc > min_trc) {
+        wcr = (wcr & ~0x3u) | min_trc;
         *BSC_CS3WCR = wcr;
     }
 }
