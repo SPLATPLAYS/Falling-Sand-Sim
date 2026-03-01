@@ -169,6 +169,146 @@ static void drawBrushSlider(uint16_t* vram) {
   }
 }
 
+// Start menu play-button bounds (updated by drawStartMenu)
+int startMenuButtonX = 0;
+int startMenuButtonY = 0;
+int startMenuButtonW = 0;
+int startMenuButtonH = 0;
+
+// ---------------------------------------------------------------------------
+// 5×7 uppercase letter font (index 0='A' .. 25='Z', 26=space)
+// Each entry is 7 rows; each row is a 5-bit mask (MSB = leftmost column).
+// ---------------------------------------------------------------------------
+static const uint8_t letterFont[27][7] = {
+  {0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}, // A
+  {0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E}, // B
+  {0x0E,0x11,0x10,0x10,0x10,0x11,0x0E}, // C
+  {0x1E,0x11,0x11,0x11,0x11,0x11,0x1E}, // D
+  {0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F}, // E
+  {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10}, // F
+  {0x0E,0x11,0x10,0x17,0x11,0x11,0x0E}, // G
+  {0x11,0x11,0x11,0x1F,0x11,0x11,0x11}, // H
+  {0x1F,0x04,0x04,0x04,0x04,0x04,0x1F}, // I
+  {0x07,0x02,0x02,0x02,0x02,0x12,0x0C}, // J
+  {0x11,0x12,0x14,0x18,0x14,0x12,0x11}, // K
+  {0x10,0x10,0x10,0x10,0x10,0x10,0x1F}, // L
+  {0x11,0x1B,0x15,0x11,0x11,0x11,0x11}, // M
+  {0x11,0x19,0x15,0x13,0x11,0x11,0x11}, // N
+  {0x0E,0x11,0x11,0x11,0x11,0x11,0x0E}, // O
+  {0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}, // P
+  {0x0E,0x11,0x11,0x15,0x12,0x0D,0x00}, // Q
+  {0x1E,0x11,0x11,0x1E,0x14,0x12,0x11}, // R
+  {0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E}, // S
+  {0x1F,0x04,0x04,0x04,0x04,0x04,0x04}, // T
+  {0x11,0x11,0x11,0x11,0x11,0x11,0x0E}, // U
+  {0x11,0x11,0x11,0x11,0x11,0x0A,0x04}, // V
+  {0x11,0x11,0x11,0x15,0x1B,0x11,0x11}, // W
+  {0x11,0x11,0x0A,0x04,0x0A,0x11,0x11}, // X
+  {0x11,0x11,0x0A,0x04,0x04,0x04,0x04}, // Y
+  {0x1F,0x01,0x02,0x04,0x08,0x10,0x1F}, // Z
+  {0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // space
+};
+
+// Draw a single character at pixel (x,y), each font pixel rendered as scale×scale.
+static void drawChar(uint16_t* vram, int x, int y, char c, uint16_t color, int scale) {
+  int idx;
+  if (c >= 'A' && c <= 'Z') idx = c - 'A';
+  else if (c >= 'a' && c <= 'z') idx = c - 'a';
+  else idx = 26; // space / unknown
+
+  for (int row = 0; row < 7; row++) {
+    uint8_t rowData = letterFont[idx][row];
+    for (int col = 0; col < 5; col++) {
+      if (rowData & (1u << (4 - col))) {
+        for (int sy = 0; sy < scale; sy++) {
+          for (int sx = 0; sx < scale; sx++) {
+            int px = x + col * scale + sx;
+            int py = y + row * scale + sy;
+            if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
+              vram[py * lcdWidth + px] = color;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Draw a null-terminated string starting at (x, y).
+// Each character cell is (5*scale) wide with a gap of (scale) between chars.
+static void drawText(uint16_t* vram, int x, int y, const char* str,
+                     uint16_t color, int scale) {
+  for (int i = 0; str[i] != '\0'; i++) {
+    drawChar(vram, x, y, str[i], color, scale);
+    x += 5 * scale + scale;
+  }
+}
+
+// Return the pixel width of a string at the given scale.
+static int textPixelWidth(const char* str, int scale) {
+  int len = 0;
+  while (str[len]) len++;
+  if (len == 0) return 0;
+  return len * (5 * scale + scale) - scale; // remove trailing inter-char gap
+}
+
+// Draw the start menu screen (black background, centred title + play button).
+void drawStartMenu(uint16_t* vram) {
+  // --- Background ---
+  for (int i = 0; i < lcdWidth * lcdHeight; i++)
+    vram[i] = COLOR_AIR; // black
+
+  const int scale = 2; // font scale factor
+  const int charH = 7 * scale; // character height in pixels
+
+  // --- Title: "FALLING SAND" ---
+  const char* title = "FALLING SAND";
+  int titleW = textPixelWidth(title, scale);
+  int titleX = (lcdWidth  - titleW) / 2;
+  int titleY = lcdHeight / 2 - 30; // above centre
+  drawText(vram, titleX, titleY, title, COLOR_SAND, scale);
+
+  // --- Play button ---
+  const char* btnLabel = "PLAY";
+  int labelW  = textPixelWidth(btnLabel, scale);
+  int labelH  = charH;
+
+  const int btnPadX = 20;
+  const int btnPadY = 8;
+  int btnW = labelW  + btnPadX * 2;
+  int btnH = labelH  + btnPadY * 2;
+  int btnX = (lcdWidth  - btnW) / 2;
+  int btnY = lcdHeight / 2 + 10; // below centre
+
+  // Store for hit-testing in handleStartMenuInput
+  startMenuButtonX = btnX;
+  startMenuButtonY = btnY;
+  startMenuButtonW = btnW;
+  startMenuButtonH = btnH;
+
+  // Fill button with dark background
+  for (int py = btnY; py < btnY + btnH; py++) {
+    for (int px = btnX; px < btnX + btnW; px++) {
+      if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
+        vram[py * lcdWidth + px] = COLOR_WALL;
+    }
+  }
+
+  // Draw white border (1 px)
+  for (int px = btnX; px < btnX + btnW; px++) {
+    if (btnY     >= 0 && btnY     < lcdHeight) vram[btnY              * lcdWidth + px] = COLOR_HIGHLIGHT;
+    if (btnY+btnH-1 >= 0 && btnY+btnH-1 < lcdHeight) vram[(btnY+btnH-1) * lcdWidth + px] = COLOR_HIGHLIGHT;
+  }
+  for (int py = btnY; py < btnY + btnH; py++) {
+    if (btnX       >= 0 && btnX       < lcdWidth) vram[py * lcdWidth + btnX]           = COLOR_HIGHLIGHT;
+    if (btnX+btnW-1 >= 0 && btnX+btnW-1 < lcdWidth) vram[py * lcdWidth + btnX+btnW-1]  = COLOR_HIGHLIGHT;
+  }
+
+  // Draw centred button label
+  int labelX = btnX + (btnW - labelW) / 2;
+  int labelY = btnY + (btnH - labelH) / 2;
+  drawText(vram, labelX, labelY, btnLabel, COLOR_HIGHLIGHT, scale);
+}
+
 // Draw the grid to screen - optimized for faster VRAM writes
 ILRAM_FUNC void drawGrid(uint16_t* vram) {
   // Optimized: write scanlines directly with proper bounds checking

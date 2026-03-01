@@ -2,4 +2,5 @@ dist/
 obj/
 .cache/
 .deps/
+temp/
 compile_commands.json

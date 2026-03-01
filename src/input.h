@@ -15,4 +15,10 @@ extern bool tempViewEnabled;
 // Handle input, returns true if should exit
 bool handleInput();
 
+// Handle start-menu input.
+// Returns  1 : user pressed Play (start game)
+//         -1 : user wants to exit the app
+//          0 : no relevant event yet
+int handleStartMenuInput();
+
 #endif // INPUT_H

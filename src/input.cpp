@@ -2,6 +2,7 @@
 #include "config.h"
 #include "grid.h"
 #include "particle.h"
+#include "renderer.h"
 #include "settings.h"
 #include <cstring>
 #include <sdk/os/input.h>
@@ -62,6 +63,34 @@ static void placeParticle(int gridX, int gridY) {
       }
     }
   }
+}
+
+// Handle start-menu input.
+// Returns 1 to start the game, -1 to exit the app, 0 to keep waiting.
+int handleStartMenuInput() {
+  struct Input_Event event;
+  memset(&event, 0, sizeof(event));
+
+  while (GetInput(&event, 0, 0x10) == 0 && event.type != EVENT_NONE) {
+    if (event.type == EVENT_TOUCH) {
+      int tx = event.data.touch_single.p1_x;
+      int ty = event.data.touch_single.p1_y;
+      // Check if the touch is inside the Play button
+      if (tx >= startMenuButtonX && tx < startMenuButtonX + startMenuButtonW &&
+          ty >= startMenuButtonY && ty < startMenuButtonY + startMenuButtonH) {
+        return 1;
+      }
+    } else if (event.type == EVENT_KEY) {
+      if (event.data.key.direction == KEY_PRESSED) {
+        if (event.data.key.keyCode == KEYCODE_EXE) return 1;
+        if (event.data.key.keyCode == KEYCODE_POWER_CLEAR) return -1;
+      }
+    } else if (event.type == EVENT_ACTBAR_ESC) {
+      return -1;
+    }
+    memset(&event, 0, sizeof(event));
+  }
+  return 0;
 }
 
 // Handle input, returns true if should exit

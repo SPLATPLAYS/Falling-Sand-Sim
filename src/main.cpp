@@ -41,7 +41,27 @@ int main(int argc, char **argv, char **envp) {
   unsigned int width, height;
   LCD_GetSize(&width, &height);
   initRenderer(width, height);
-  
+
+  // --- Start menu ---
+  {
+    bool inMenu = true;
+    while (inMenu) {
+      uint16_t *vramPtr = (uint16_t*)LCD_GetVRAMAddress();
+      drawStartMenu(vramPtr);
+      LCD_Refresh();
+      int result = handleStartMenuInput();
+      if (result == 1) {
+        // Clear to black (keep background, remove title/button) before game starts
+        uint16_t *vramPtr2 = (uint16_t*)LCD_GetVRAMAddress();
+        for (int i = 0; i < (int)(width * height); i++) vramPtr2[i] = 0x0000;
+        LCD_Refresh();
+        inMenu = false; // proceed to game
+      } else if (result == -1) {
+        return 0; // exit app from start menu
+      }
+    }
+  }
+
   // Main loop
   bool running = true;
   uint32_t frameCount = 0;
