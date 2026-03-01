@@ -24,6 +24,7 @@ enum class Particle : uint8_t {
   ICE,
   STEAM,
   ACID,
+  FIRE,
   COUNT  // must remain last — used to derive PARTICLE_TYPE_COUNT
 };
 
@@ -39,6 +40,7 @@ constexpr uint16_t COLOR_ICE   = 0xAFFF;   // Pale icy cyan-blue
 constexpr uint16_t COLOR_UI_AIR = 0xF81F;  // Bright pink (magenta) for UI display
 constexpr uint16_t COLOR_STEAM  = 0xEF7D;   // Very light blue-white (hot steam)
 constexpr uint16_t COLOR_ACID   = 0x8FE0;   // Toxic yellow-green
+constexpr uint16_t COLOR_FIRE   = 0xFA00;   // Bright orange-red (R=31,G=16,B=0 in RGB565)
 constexpr uint16_t COLOR_HIGHLIGHT = 0xFFFF; // White
 
 // Brush size (runtime variable, persisted via MCS)
@@ -49,7 +51,7 @@ constexpr int BRUSH_SIZE_MAX     = 9;
 // UI constants
 constexpr int UI_HEIGHT = 16;
 constexpr int SWATCH_SIZE = 16;
-constexpr int SWATCH_SPACING = 18;  // Reduced from 20 to fit 10 particle types
+constexpr int SWATCH_SPACING = 18;  // Spacing for 11 particle types (incl. FIRE)
 constexpr int UI_START_X = 10;
 constexpr int PARTICLE_TYPE_COUNT = static_cast<int>(Particle::COUNT);
 
@@ -59,10 +61,10 @@ constexpr int PARTICLE_TYPE_COUNT = static_cast<int>(Particle::COUNT);
 constexpr int GRID_UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
 
 // Brush size slider layout (placed after particle swatches in the UI bar)
-// 10 swatches at spacing 18: last swatch ends at 10+9*18+16=188; slider starts at 190
-constexpr int BRUSH_SLIDER_DIGIT_X  = 190; // X of brush-size digit
-constexpr int BRUSH_SLIDER_TRACK_X  = 200; // X where slider track begins
-constexpr int BRUSH_SLIDER_TRACK_W  = 56;  // Pixel width of track
+// 11 swatches at spacing 18: last swatch ends at 10+10*18+16=206; slider starts at 208
+constexpr int BRUSH_SLIDER_DIGIT_X  = 208; // X of brush-size digit
+constexpr int BRUSH_SLIDER_TRACK_X  = 218; // X where slider track begins
+constexpr int BRUSH_SLIDER_TRACK_W  = 40;  // Pixel width of track
 constexpr int BRUSH_SLIDER_HANDLE_W = 6;   // Pixel width of handle
 
 // Simulation speed mode — runtime variable persisted via MCS (see settings.h).
@@ -99,6 +101,7 @@ constexpr int FALL_SPEED_LAVA = 2;   // Heavy liquid - flows slower than water
 constexpr int FALL_SPEED_ICE  = 2;   // Solid - falls like sand
 constexpr int FALL_SPEED_STEAM = 2;  // Gas - rises every other frame
 constexpr int FALL_SPEED_ACID  = 1;  // Liquid - flows fast like water
+constexpr int FALL_SPEED_FIRE  = 2;  // Gas - rises every other frame (like steam)
 
 // Acid dissolution: checked each update against each orthogonal neighbour.
 // ACID_DISSOLVE_MASK: 1-in-(mask+1) chance to dissolve a dissolvable neighbour.
@@ -117,6 +120,11 @@ constexpr uint8_t TEMP_STEAM_CONDENSE =  80;  // Coarse-tile threshold for conde
 // Probability mask for condensation check (power-of-2 − 1).
 constexpr uint32_t STEAM_CONDENSE_MASK = 0x7u;  // 1-in-8 chance per update when cool enough
 
+// Fire phase constants
+constexpr uint8_t  TEMP_FIRE          = 220;  // Temperature fire produces (hot but less than lava=255)
+constexpr uint32_t FIRE_BURNOUT_MASK  = 0xFu;  // 1-in-16 chance to burn out per update (~32 frames avg)
+constexpr uint32_t FIRE_SPREAD_MASK   = 0x7u;  // 1-in-8 chance to ignite adjacent plant per update
+
 // Enforce power-of-2 constraint at compile time
 static_assert((FALL_SPEED_STONE & (FALL_SPEED_STONE - 1)) == 0, "FALL_SPEED_STONE must be a power of 2");
 static_assert((FALL_SPEED_SAND  & (FALL_SPEED_SAND  - 1)) == 0, "FALL_SPEED_SAND must be a power of 2");
@@ -125,6 +133,7 @@ static_assert((FALL_SPEED_LAVA  & (FALL_SPEED_LAVA  - 1)) == 0, "FALL_SPEED_LAVA
 static_assert((FALL_SPEED_ICE   & (FALL_SPEED_ICE   - 1)) == 0, "FALL_SPEED_ICE must be a power of 2");
 static_assert((FALL_SPEED_STEAM & (FALL_SPEED_STEAM - 1)) == 0, "FALL_SPEED_STEAM must be a power of 2");
 static_assert((FALL_SPEED_ACID  & (FALL_SPEED_ACID  - 1)) == 0, "FALL_SPEED_ACID must be a power of 2");
+static_assert((FALL_SPEED_FIRE  & (FALL_SPEED_FIRE  - 1)) == 0, "FALL_SPEED_FIRE must be a power of 2");
 static_assert((LAVA_FLOW_CHANCE    & (LAVA_FLOW_CHANCE    - 1)) == 0, "LAVA_FLOW_CHANCE must be a power of 2");
 static_assert((PLANT_GROWTH_CHANCE & (PLANT_GROWTH_CHANCE - 1)) == 0, "PLANT_GROWTH_CHANCE must be a power of 2");
 

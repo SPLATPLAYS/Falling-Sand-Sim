@@ -11,6 +11,7 @@ constexpr Particle PARTICLE_UI_ORDER[PARTICLE_TYPE_COUNT] = {
   Particle::STONE,
   Particle::WALL,
   Particle::LAVA,
+  Particle::FIRE,
   Particle::PLANT,
   Particle::ICE,
   Particle::STEAM,
@@ -30,6 +31,7 @@ inline uint16_t getParticleColor(Particle p) {
     case Particle::ICE:   return COLOR_ICE;
     case Particle::STEAM: return COLOR_STEAM;
     case Particle::ACID:  return COLOR_ACID;
+    case Particle::FIRE:  return COLOR_FIRE;
     default: return COLOR_AIR;
   }
 }
@@ -44,6 +46,7 @@ inline int getFallSpeed(Particle p) {
     case Particle::ICE:   return FALL_SPEED_ICE;
     case Particle::STEAM: return FALL_SPEED_STEAM;
     case Particle::ACID:  return FALL_SPEED_ACID;
+    case Particle::FIRE:  return FALL_SPEED_FIRE;
     default: return 1; // Stationary particles, doesn't matter
   }
 }
@@ -60,6 +63,7 @@ inline uint8_t getParticleTemperature(Particle p) {
     case Particle::ICE:   return TEMP_ICE_SURFACE;  // Coldest — freezes surroundings
     case Particle::STEAM: return TEMP_STEAM;         // Hot — freshly evaporated
     case Particle::ACID:  return TEMP_AMBIENT;
+    case Particle::FIRE:  return TEMP_FIRE;
     case Particle::AIR:   return TEMP_AMBIENT;
     default: return TEMP_AMBIENT;
   }

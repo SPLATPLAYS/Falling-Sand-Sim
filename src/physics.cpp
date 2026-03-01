@@ -52,6 +52,7 @@ static ILRAM_FUNC void propagateTemperature() {
       const int fineX0 = cx * TEMP_SCALE;
       const int fineY0 = cy * TEMP_SCALE;
       bool hasLava  = false;
+      bool hasFire  = false;
       bool hasWater = false;
       bool hasIce   = false;
       int  wallCount = 0;
@@ -60,6 +61,7 @@ static ILRAM_FUNC void propagateTemperature() {
         for (int dx = 0; dx < TEMP_SCALE; dx++) {
           Particle p = grid[fineY0 + dy][fineX0 + dx];
           if      (p == Particle::LAVA)  { hasLava = true; }
+          else if (p == Particle::FIRE)  { hasFire = true; }
           else if (p == Particle::ICE)   { hasIce  = true; }
           else if (p == Particle::WALL)  { wallCount++; }
           else if (p == Particle::WATER) { hasWater = true; }
@@ -70,6 +72,12 @@ static ILRAM_FUNC void propagateTemperature() {
       if (hasLava) {
         // Lava pins its tile to maximum heat — it is a continuous heat source.
         temperature[cy][cx] = TEMP_LAVA;
+      } else if (hasFire) {
+        // Fire heats its tile toward TEMP_FIRE (220) — strong but not instant like lava.
+        int t = static_cast<int>(temperature[cy][cx]);
+        if (t < TEMP_FIRE) t += 4;
+        if (t > TEMP_FIRE) t = TEMP_FIRE;
+        temperature[cy][cx] = static_cast<uint8_t>(t);
       } else if (allWall) {
         // Entirely-wall tile: thermal insulator, always ambient.
         temperature[cy][cx] = TEMP_AMBIENT;
@@ -299,6 +307,13 @@ static void updateLava(int x, int y) {
     }
   }
   
+  // Lava occasionally emits fire particles directly above — glowing sparks
+  if (y > 0 && isEmpty(x, y - 1) && (xorshift32() & 0x3Fu) == 0) {
+    grid[y - 1][x] = Particle::FIRE;
+    tempSet(x, y - 1, TEMP_FIRE);
+    updatedSet(x, y - 1);
+  }
+
   // Lava flows like water but slower
   if (isEmpty(x, y + 1)) {
     swap(x, y, x, y + 1);
@@ -411,6 +426,86 @@ static void updateAcid(int x, int y) {
       updatedSet(x, y);
       updatedSet(x + dir2, y);
     }
+  }
+}
+
+// Update fire particle: rises, ignites PLANT neighbours, is quenched by WATER,
+// and burns out probabilistically into STEAM (smoke) or AIR.
+static void updateFire(int x, int y) {
+  // Burns out probabilistically
+  if ((xorshift32() & FIRE_BURNOUT_MASK) == 0) {
+    if (xorshift32() & 1u) {
+      grid[y][x] = Particle::STEAM;
+      tempSet(x, y, TEMP_STEAM);
+    } else {
+      grid[y][x] = Particle::AIR;
+    }
+    updatedSet(x, y);
+    return;
+  }
+
+  // Interact with orthogonal neighbours
+  static const int8_t fndx[4] = {  0,  0, -1,  1 };
+  static const int8_t fndy[4] = { -1,  1,  0,  0 };
+  for (int i = 0; i < 4; i++) {
+    int nx = x + fndx[i];
+    int ny = y + fndy[i];
+    if (!isValid(nx, ny)) continue;
+    Particle nb = grid[ny][nx];
+
+    // Water quenches fire: both become STEAM
+    if (nb == Particle::WATER) {
+      grid[y][x]  = Particle::STEAM;
+      grid[ny][nx] = Particle::STEAM;
+      tempSet(x,  y,  TEMP_STEAM);
+      tempSet(nx, ny, TEMP_STEAM);
+      updatedSet(x, y);
+      updatedSet(nx, ny);
+      return;
+    }
+
+    // Ignite adjacent PLANT (probabilistic spread)
+    if (nb == Particle::PLANT && (xorshift32() & FIRE_SPREAD_MASK) == 0) {
+      grid[ny][nx] = Particle::FIRE;
+      tempSet(nx, ny, TEMP_FIRE);
+      updatedSet(nx, ny);
+    }
+  }
+
+  // Rise upward like a hot gas
+  if (y > 0 && isEmpty(x, y - 1)) {
+    swap(x, y, x, y - 1);
+    updatedSet(x, y);
+    updatedSet(x, y - 1);
+    return;
+  }
+
+  // Diagonal rise — randomize direction to avoid left/right bias
+  bool tryLeftFirst = (xorshift32() & 1u) == 0;
+  int d1 = tryLeftFirst ? -1 : 1;
+  int d2 = -d1;
+  if (y > 0 && isEmpty(x + d1, y - 1)) {
+    swap(x, y, x + d1, y - 1);
+    updatedSet(x, y);
+    updatedSet(x + d1, y - 1);
+    return;
+  }
+  if (y > 0 && isEmpty(x + d2, y - 1)) {
+    swap(x, y, x + d2, y - 1);
+    updatedSet(x, y);
+    updatedSet(x + d2, y - 1);
+    return;
+  }
+
+  // Blocked above — drift sideways
+  if (isEmpty(x + d1, y)) {
+    swap(x, y, x + d1, y);
+    updatedSet(x, y);
+    updatedSet(x + d1, y);
+  } else if (isEmpty(x + d2, y)) {
+    swap(x, y, x + d2, y);
+    updatedSet(x, y);
+    updatedSet(x + d2, y);
   }
 }
 
@@ -569,6 +664,9 @@ ILRAM_FUNC void simulate() {
           break;
         case Particle::ACID:
           updateAcid(x, y);
+          break;
+        case Particle::FIRE:
+          updateFire(x, y);
           break;
         default:
           break;
