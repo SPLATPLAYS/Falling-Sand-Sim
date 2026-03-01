@@ -25,4 +25,14 @@ extern int startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     
 // Draw the start menu (title + PLAY / SETTINGS / EXIT buttons)
 void drawStartMenu(uint16_t* vram);
 
+// Draw the top-level settings menu (CPU SPEED / SIM SPEED rows).
+// 'selectedItem' is the currently highlighted row (0 or 1).
+void drawSettingsMenu(uint16_t* vram, int selectedItem);
+
+// Draw the overclock sub-menu.
+void drawOCScreen(uint16_t* vram, int selectedLevel);
+
+// Draw the simulation speed sub-menu.
+void drawSimSpeedScreen(uint16_t* vram, int selectedMode);
+
 #endif // RENDERER_H

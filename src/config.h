@@ -55,9 +55,15 @@ constexpr int BRUSH_SLIDER_TRACK_X  = 182; // X where slider track begins
 constexpr int BRUSH_SLIDER_TRACK_W  = 80;  // Pixel width of track
 constexpr int BRUSH_SLIDER_HANDLE_W = 6;   // Pixel width of handle
 
-// Frame skipping for performance
-constexpr int FRAME_SKIP_AMOUNT = 0;       // 0 = no skip, 1 = skip 1 frame (30fps), 2 = skip 2 frames (20fps), etc.
-constexpr bool FRAME_SKIP_ENABLED = false; // Set to true to enable frame skipping
+// Simulation speed mode — runtime variable persisted via MCS (see settings.h).
+// Mode 0 = full render rate (no skip); modes 1-4 = progressively fewer renders.
+// Skip amounts per mode: {0, 1, 2, 4, 8} frames skipped between each render.
+constexpr int SIM_SPEED_MODE_DEFAULT = 0;
+constexpr int SIM_SPEED_MODE_MAX     = 4;
+// Names shown in the settings screen
+extern const char* const simSpeedModeNames[SIM_SPEED_MODE_MAX + 1];
+// Map mode → number of frames skipped between each render (0 = no skip)
+extern const int simSkipAmounts[SIM_SPEED_MODE_MAX + 1];
 
 // Simulation probabilities and limits
 constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways

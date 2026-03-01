@@ -3,6 +3,8 @@
 #include "particle.h"
 #include "grid.h"
 #include "input.h"
+#include "overclock.h"
+#include "settings.h"
 #include <sys/time.h>
 #include <cstring>
 
@@ -67,7 +69,7 @@ void updateFPS() {
 }
 
 // Draw a 5x7 digit to VRAM
-static void drawDigit(uint16_t* vram, int x, int y, int digit, uint16_t color) {
+static void drawDigit(uint16_t* vram, int x, int y, int digit, uint16_t color, int scale = 1) {
   // 5x7 font for digits 0-9
   static const uint8_t font[10][7] = {
     {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}, // 0
@@ -88,10 +90,13 @@ static void drawDigit(uint16_t* vram, int x, int y, int digit, uint16_t color) {
     uint8_t rowData = font[digit][row];
     for (int col = 0; col < 5; col++) {
       if (rowData & (1 << (4 - col))) {
-        int px = x + col;
-        int py = y + row;
-        if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight) {
-          vram[py * lcdWidth + px] = color;
+        for (int sy = 0; sy < scale; sy++) {
+          for (int sx = 0; sx < scale; sx++) {
+            int px = x + col * scale + sx;
+            int py = y + row * scale + sy;
+            if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
+              vram[py * lcdWidth + px] = color;
+          }
         }
       }
     }
@@ -210,6 +215,11 @@ static const uint8_t letterFont[27][7] = {
 
 // Draw a single character at pixel (x,y), each font pixel rendered as scale×scale.
 static void drawChar(uint16_t* vram, int x, int y, char c, uint16_t color, int scale) {
+  // Digits use the separate digit font; letters use the letter font.
+  if (c >= '0' && c <= '9') {
+    drawDigit(vram, x, y, c - '0', color, scale);
+    return;
+  }
   int idx;
   if (c >= 'A' && c <= 'Z') idx = c - 'A';
   else if (c >= 'a' && c <= 'z') idx = c - 'a';
@@ -316,6 +326,167 @@ void drawStartMenu(uint16_t* vram) {
                  startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     startMenuExitBtnH);
 }
 
+// ---------------------------------------------------------------------------
+// Shared settings-screen helpers
+// ---------------------------------------------------------------------------
+
+// Shared background + title for all settings sub-screens.
+static void drawSettingsBackground(uint16_t* vram, const char* title) {
+  for (int i = 0; i < lcdWidth * lcdHeight; i++)
+    vram[i] = COLOR_AIR;
+  const int scale = 2;
+  int titleW = textPixelWidth(title, scale);
+  drawText(vram, lcdWidth / 2 - titleW / 2, 10, title, COLOR_HIGHLIGHT, scale);
+}
+
+// Shared footer hints at the bottom of every settings screen.
+static void drawSettingsFooter(uint16_t* vram) {
+  const char* h1 = "UP DOWN SELECT";
+  const char* h2 = "EXE SAVE   EXIT BACK";
+  drawText(vram, lcdWidth / 2 - textPixelWidth(h1, 1) / 2, lcdHeight - 20, h1, COLOR_WALL, 1);
+  drawText(vram, lcdWidth / 2 - textPixelWidth(h2, 1) / 2, lcdHeight - 10, h2, COLOR_WALL, 1);
+}
+
+// Highlight bar for the currently selected row.
+static void drawRowHighlight(uint16_t* vram, int rowY, int rowH) {
+  for (int py = rowY - 2; py < rowY + rowH - 4; py++)
+    for (int px = 8; px < lcdWidth - 8; px++)
+      if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
+        vram[py * lcdWidth + px] = COLOR_WALL;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level settings menu
+// ---------------------------------------------------------------------------
+
+void drawSettingsMenu(uint16_t* vram, int selectedItem) {
+  drawSettingsBackground(vram, "SETTINGS");
+
+  const int scale     = 2;
+  const int rowH      = 7 * scale + 8;
+  const int rowStartY = 40;
+
+  static const char* const items[] = {"CPU SPEED", "SIM SPEED"};
+  constexpr int NUM_ITEMS = 2;
+
+  for (int i = 0; i < NUM_ITEMS; i++) {
+    int rowY = rowStartY + i * rowH;
+    bool sel = (i == selectedItem);
+    if (sel) drawRowHighlight(vram, rowY, rowH);
+    uint16_t col = sel ? COLOR_HIGHLIGHT : COLOR_STONE;
+    if (sel) drawText(vram, 12, rowY, ">", col, scale);
+    drawText(vram, 28, rowY, items[i], col, scale);
+    // Right-arrow hint to indicate submenu
+    drawText(vram, lcdWidth - 28, rowY, ">", sel ? COLOR_HIGHLIGHT : COLOR_WALL, scale);
+  }
+
+  // Navigate hint (EXE enters sub-menu)
+  const char* h1 = "UP DOWN SELECT";
+  const char* h2 = "EXE ENTER  EXIT BACK";
+  drawText(vram, lcdWidth / 2 - textPixelWidth(h1, 1) / 2, lcdHeight - 20, h1, COLOR_WALL, 1);
+  drawText(vram, lcdWidth / 2 - textPixelWidth(h2, 1) / 2, lcdHeight - 10, h2, COLOR_WALL, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Overclock sub-menu
+// ---------------------------------------------------------------------------
+
+// Draw an integer value (up to 3 digits) at (x,y) in the given color.
+static void drawInt(uint16_t* vram, int x, int y, int val, uint16_t color) {
+  if (val >= 100) {
+    drawDigit(vram, x, y, val / 100, color);
+    x += 6;
+    drawDigit(vram, x, y, (val / 10) % 10, color);
+    x += 6;
+    drawDigit(vram, x, y, val % 10, color);
+  } else if (val >= 10) {
+    drawDigit(vram, x, y, val / 10, color);
+    x += 6;
+    drawDigit(vram, x, y, val % 10, color);
+  } else {
+    drawDigit(vram, x, y, val, color);
+  }
+}
+
+// '%' glyph (5×7 bitmap).
+static void drawPctGlyph(uint16_t* vram, int x0, int y0, uint16_t color, int scale) {
+  static const uint8_t pct_glyph[7] = {
+    0x18, 0x18, 0x02, 0x04, 0x08, 0x03, 0x03
+  };
+  for (int row = 0; row < 7; row++) {
+    for (int col = 0; col < 5; col++) {
+      if (pct_glyph[row] & (1u << (4 - col))) {
+        for (int sy = 0; sy < scale; sy++)
+          for (int sx = 0; sx < scale; sx++) {
+            int px = x0 + col * scale + sx;
+            int py = y0 + row * scale + sy;
+            if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
+              vram[py * lcdWidth + px] = color;
+          }
+      }
+    }
+  }
+}
+
+void drawOCScreen(uint16_t* vram, int selectedLevel) {
+  drawSettingsBackground(vram, "CPU SPEED");
+
+  const int scale     = 2;
+  const int rowH      = 7 * scale + 6;
+  const int rowStartY = 38;
+
+  for (int lvl = OC_LEVEL_MIN; lvl <= OC_LEVEL_MAX; lvl++) {
+    int rowY = rowStartY + lvl * rowH;
+    bool sel = (lvl == selectedLevel);
+    if (sel) drawRowHighlight(vram, rowY, rowH);
+    uint16_t col = sel ? COLOR_HIGHLIGHT : COLOR_STONE;
+    if (sel) drawText(vram, 12, rowY, ">", col, scale);
+    drawText(vram, 28, rowY, overclock_level_names[lvl], col, scale);
+    // Show estimated speed percentage on the right
+    int pct = oclock_speed_percent(lvl);
+    drawInt(vram, lcdWidth - 70, rowY, pct, col);
+    drawPctGlyph(vram, lcdWidth - 54, rowY, col, 1);
+  }
+
+  drawSettingsFooter(vram);
+}
+
+// ---------------------------------------------------------------------------
+// Simulation speed sub-menu
+// ---------------------------------------------------------------------------
+
+void drawSimSpeedScreen(uint16_t* vram, int selectedMode) {
+  drawSettingsBackground(vram, "SIM SPEED");
+
+  const int scale     = 2;
+  const int rowH      = 7 * scale + 6;
+  const int rowStartY = 38;
+
+  // Right-column description: physics ticks per rendered frame
+  static const char* const desc[SIM_SPEED_MODE_MAX + 1] = {
+    "1 PHYS PER FRAME",   // mode 0
+    "2 PHYS PER FRAME",   // mode 1
+    "3 PHYS PER FRAME",   // mode 2
+    "5 PHYS PER FRAME",   // mode 3
+    "9 PHYS PER FRAME",   // mode 4
+  };
+
+  for (int m = 0; m <= SIM_SPEED_MODE_MAX; m++) {
+    int rowY = rowStartY + m * rowH;
+    bool sel = (m == selectedMode);
+    if (sel) drawRowHighlight(vram, rowY, rowH);
+    uint16_t col = sel ? COLOR_HIGHLIGHT : COLOR_STONE;
+    if (sel) drawText(vram, 12, rowY, ">", col, scale);
+    drawText(vram, 28, rowY, simSpeedModeNames[m], col, scale);
+    // Show description in small font on the right
+    int descW = textPixelWidth(desc[m], 1);
+    drawText(vram, lcdWidth - descW - 6, rowY + (7 * scale - 7) / 2, desc[m],
+             sel ? COLOR_HIGHLIGHT : COLOR_WALL, 1);
+  }
+
+  drawSettingsFooter(vram);
+}
+
 // Draw the grid to screen - optimized for faster VRAM writes
 ILRAM_FUNC void drawGrid(uint16_t* vram) {
   // Optimized: write scanlines directly with proper bounds checking
@@ -386,4 +557,11 @@ ILRAM_FUNC void drawGrid(uint16_t* vram) {
 
   // Draw brush size slider
   drawBrushSlider(vram);
+
+  // Draw "EXE BACK" hint — right of the brush slider, in the UI bar
+  {
+    const int hintX = 268;
+    const int hintY = SCREEN_HEIGHT - UI_HEIGHT + (UI_HEIGHT - 7) / 2;
+    drawText(vram, hintX, hintY, "EXE BACK", COLOR_WALL, 1);
+  }
 }

@@ -2,6 +2,7 @@
 #include "config.h"
 #include "grid.h"
 #include "particle.h"
+#include "overclock.h"
 #include "renderer.h"
 #include "settings.h"
 #include <cstring>
@@ -89,6 +90,135 @@ int handleStartMenuInput() {
         if (event.data.key.keyCode == KEYCODE_POWER_CLEAR)  return -1;
       }
     } else if (event.type == EVENT_ACTBAR_ESC) {
+      return -1;
+    }
+    memset(&event, 0, sizeof(event));
+  }
+  return 0;
+}
+
+// Handle top-level settings menu input.
+// Returns 1=EXE (enter sub-menu), -1=CLEAR/ESC (back), 0=navigating.
+int handleSettingsMenuInput(int& selectedItem) {
+  struct Input_Event event;
+  memset(&event, 0, sizeof(event));
+
+  while (GetInput(&event, 0, 0x10) == 0 && event.type != EVENT_NONE) {
+    if (event.type == EVENT_KEY) {
+      if (event.data.key.direction == KEY_PRESSED ||
+          event.data.key.direction == KEY_HELD) {
+        switch (event.data.key.keyCode) {
+          case KEYCODE_UP:
+            if (selectedItem > 0) selectedItem--;
+            break;
+          case KEYCODE_DOWN:
+            if (selectedItem < 1) selectedItem++;
+            break;
+          case KEYCODE_EXE:
+            if (event.data.key.direction == KEY_PRESSED) {
+              memset(&event, 0, sizeof(event));
+              return 1;
+            }
+            break;
+          case KEYCODE_POWER_CLEAR:
+            if (event.data.key.direction == KEY_PRESSED) {
+              memset(&event, 0, sizeof(event));
+              return -1;
+            }
+            break;
+          default: break;
+        }
+      }
+    } else if (event.type == EVENT_ACTBAR_ESC) {
+      memset(&event, 0, sizeof(event));
+      return -1;
+    }
+    memset(&event, 0, sizeof(event));
+  }
+  return 0;
+}
+
+// Handle overclock sub-menu input.
+// Returns 1=confirmed, -1=cancelled, 0=navigating.
+int handleOCInput(int& selectedLevel) {
+  struct Input_Event event;
+  memset(&event, 0, sizeof(event));
+
+  while (GetInput(&event, 0, 0x10) == 0 && event.type != EVENT_NONE) {
+    if (event.type == EVENT_KEY) {
+      if (event.data.key.direction == KEY_PRESSED ||
+          event.data.key.direction == KEY_HELD) {
+        switch (event.data.key.keyCode) {
+          case KEYCODE_UP:
+            if (selectedLevel > OC_LEVEL_MIN) {
+              selectedLevel--;
+              oclock_apply(selectedLevel); // live preview
+            }
+            break;
+          case KEYCODE_DOWN:
+            if (selectedLevel < OC_LEVEL_MAX) {
+              selectedLevel++;
+              oclock_apply(selectedLevel);
+            }
+            break;
+          case KEYCODE_EXE:
+            if (event.data.key.direction == KEY_PRESSED) {
+              memset(&event, 0, sizeof(event));
+              return 1;
+            }
+            break;
+          case KEYCODE_POWER_CLEAR:
+            if (event.data.key.direction == KEY_PRESSED) {
+              memset(&event, 0, sizeof(event));
+              return -1;
+            }
+            break;
+          default: break;
+        }
+      }
+    } else if (event.type == EVENT_ACTBAR_ESC) {
+      memset(&event, 0, sizeof(event));
+      return -1;
+    }
+    memset(&event, 0, sizeof(event));
+  }
+  return 0;
+}
+
+// Handle simulation speed sub-menu input.
+// Returns 1=confirmed, -1=cancelled, 0=navigating.
+int handleSimSpeedInput(int& selectedMode) {
+  struct Input_Event event;
+  memset(&event, 0, sizeof(event));
+
+  while (GetInput(&event, 0, 0x10) == 0 && event.type != EVENT_NONE) {
+    if (event.type == EVENT_KEY) {
+      if (event.data.key.direction == KEY_PRESSED ||
+          event.data.key.direction == KEY_HELD) {
+        switch (event.data.key.keyCode) {
+          case KEYCODE_UP:
+            if (selectedMode > 0) selectedMode--;
+            break;
+          case KEYCODE_DOWN:
+            if (selectedMode < SIM_SPEED_MODE_MAX) selectedMode++;
+            break;
+          case KEYCODE_EXE:
+            if (event.data.key.direction == KEY_PRESSED) {
+              memset(&event, 0, sizeof(event));
+              return 1;
+            }
+            break;
+          case KEYCODE_POWER_CLEAR:
+            if (event.data.key.direction == KEY_PRESSED) {
+              memset(&event, 0, sizeof(event));
+              return -1;
+            }
+            break;
+          default: break;
+        }
+      }
+    } else if (event.type == EVENT_ACTBAR_ESC) {
+      memset(&event, 0, sizeof(event));
       return -1;
     }
     memset(&event, 0, sizeof(event));
