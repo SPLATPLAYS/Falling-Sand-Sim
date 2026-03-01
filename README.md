@@ -4,15 +4,17 @@ A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG serie
 
 ## Features
 
-- **Multiple particle types**: Sand, Water, Stone, Wall, Lava, Plant, Ice, and Air (eraser)
+- **Multiple particle types**: Sand, Water, Stone, Wall, Lava, Plant, Ice, Steam, Acid, and Air (eraser)
 - **Realistic physics**: Particles fall under gravity with different behaviors
   - Sand: Falls and settles in piles; displaces water; sustained heat converts it to stone
-  - Water: Falls and flows sideways in a randomized direction; freezes to ice when cold; evaporates when hot
+  - Water: Falls and flows sideways in a randomized direction; freezes to ice when cold; evaporates to steam when hot
   - Stone: Falls straight down, no sideways movement; melts back to lava at extreme heat
   - Wall: Static, used to build structures; cannot be displaced or overwritten
-  - Lava: Flows like water but slower; converts adjacent sand→stone, evaporates adjacent water, melts adjacent ice to water, and burns adjacent plants; isolated lava slowly solidifies into stone; continuous heat source
-  - Plant: Static; grows into adjacent empty cells when touching water (1-in-10 chance per frame); burns to air when adjacent to lava or under sustained heat
+  - Lava: Flows like water but slower; converts adjacent sand→stone, evaporates adjacent water→steam, melts adjacent ice to water, and burns adjacent plants→steam; isolated lava slowly solidifies into stone; continuous heat source
+  - Plant: Static; grows into adjacent empty cells when touching water (1-in-8 chance per frame); burns to air when adjacent to lava or under sustained heat
   - Ice: Falls like sand and can displace water; pins surrounding temperature to near-freezing, converting nearby water to ice; melts to water when warm
+  - Steam: Rises upward and drifts sideways; condenses back to water when its coarse tile cools below a threshold; created by lava contacting water or by water evaporation
+  - Acid: Flows like water; dissolves Sand, Stone, and Plant (→ air) and Ice (→ water) on contact with a 1-in-4 chance per neighbour per tick; finite — also consumed by reactions with a 1-in-4 chance
   - Air: Eraser — removes particles from the grid
 - **Temperature system**: Coarse 48×24 heat grid propagated every physics tick; drives particle phase changes (freezing, evaporation, melting, scorching) and provides a toggle-able heat-map overlay
 - **Adjustable brush size**: Sizes 1–9, default 3; controlled via a UI slider or the **+**/**−** keys (with key-hold repeat); persisted across sessions via MCS
@@ -20,12 +22,12 @@ A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG serie
 - **Interactive UI bar**: Tap particle swatches to select type; visual white-border highlight shows the active selection; Air shown in bright pink for visibility
 - **Start menu**: Title screen with PLAY, SETTINGS, and EXIT buttons; navigable by touch or keyboard
 - **Settings menu**: In-app settings screen with two sub-menus:
-  - **CPU Speed**: Overclock the SH7305 CPU through 5 levels (DEFAULT → LIGHT → MEDIUM → FAST → TURBO); live preview as you navigate; estimated speed percentage shown per level
+  - **CPU Speed**: Overclock the SH7305 CPU through 6 levels (DEFAULT → LIGHT → MEDIUM → FAST → TURBO → TURBO+); live preview as you navigate; estimated speed percentage shown per level
   - **Sim Speed**: Choose one of 5 simulation speed modes (NORMAL, X2, X3, X5, X9) controlling how many physics ticks run per rendered frame
-- **Overclock support**: FLL-based CPU frequency scaling from ~118 MHz (default) up to ~163 MHz (+38%); no BSC wait-state changes needed; safe register restore on exit
+- **Overclock support**: FLL-based CPU frequency scaling from ~118 MHz (default) up to ~236 MHz (+100%) via SELXM doubling (TURBO+); levels 1–4 require no BSC changes; level 5 updates CS3WCR SDRAM timing to the Ptune4 alpha-F5 preset and fully restores it on exit
 - **Frame skipping**: Physics always runs at full speed; rendering is throttled according to the selected sim speed mode for a higher physics tick rate
 - **MCS persistence**: Brush size, CPU speed level, and sim speed mode are automatically saved to and restored from calculator memory (MCS folder `FSandSim`)
-- **Performance optimized**: 192×96 simulation grid with direct VRAM writes at 2×2 px per cell; hot functions placed in ILRAM; grid split across on-chip X/Y RAM
+- **Performance optimized**: 160×128 simulation grid with direct VRAM writes at 2×2 px per cell; hot functions placed in ILRAM; grid split across on-chip X/Y RAM
 
 ## Controls
 
@@ -74,10 +76,10 @@ Copy `dist/FallingSandSim.hh3` to the root of the calculator when connected in U
 
 ## Technical Details
 
-- Grid size: 192×96 cells
-- Display resolution: 384×192 pixels (2×2 pixel cells per grid cell)
+- Grid size: 160×128 cells
+- Display resolution: 320×256 pixels (2×2 pixel cells per grid cell)
 - Update algorithm: Bottom-to-top scan with alternating left/right direction each row; bitset tracks which cells have already moved this tick to prevent double-updates
-- On-chip RAM layout: rows 0–41 in X RAM, rows 42–83 in Y RAM, rows 84–95 in regular RAM (fits within the 8 KB per bank limit)
+- On-chip RAM layout: rows 0–41 in X RAM, rows 42–83 in Y RAM, rows 84–127 in regular RAM (fits within the 8 KB per bank limit)
 - ILRAM: `simulate()` and `drawGrid()` are placed in the SH7305's internal instruction RAM for faster fetch/execute
 - PRNG: XorShift32 for fast, lightweight random number generation
 - MCS persistence: brush size (`BrushSz`), CPU overclock level (`OCLevel`), and sim speed mode (`SimSpd`) all saved/loaded under MCS folder `FSandSim`
@@ -120,15 +122,18 @@ The overclock system adjusts the SH7305 FLL (Frequency-Lock Loop) multiplier reg
 
 The OS-default register values are snapshotted at startup (`oclock_init()`). Level 0 never writes to the hardware. On exit the hardware is left at the last applied level (restoring to default would require writing the register again, which is unnecessary given the OS resets clocks on app exit).
 
-| Level | Name    | FLF delta | Est. CPU speed |
-|-------|---------|-----------|----------------|
-| 0     | DEFAULT | +0        | ~118 MHz       |
-| 1     | LIGHT   | +50       | ~124 MHz (+6%) |
-| 2     | MEDIUM  | +150      | ~135 MHz (+17%)|
-| 3     | FAST    | +235      | ~149 MHz (+26%)|
-| 4     | TURBO   | +345      | ~163 MHz (+38%)|
+| Level | Name    | FLF delta | Est. CPU speed        |
+|-------|---------|-----------|-----------------------|
+| 0     | DEFAULT | +0        | ~118 MHz              |
+| 1     | LIGHT   | +50       | ~124 MHz (+6%)        |
+| 2     | MEDIUM  | +150      | ~135 MHz (+17%)       |
+| 3     | FAST    | +235      | ~149 MHz (+26%)       |
+| 4     | TURBO   | +345      | ~163 MHz (+38%)       |
+| 5     | TURBO+  | SELXM=1   | ~236 MHz (+100%)      |
 
-After each `FLLFRQ` write a busy-wait of ~500 k iterations is performed to allow the FLL to relock (the SH7305 datasheet specifies a maximum lock time of 16,384 FLL cycles ≈ 2.5 ms at minimum FLL output).
+After each `FLLFRQ` write a busy-wait is performed to allow the FLL to relock; the iteration count is scaled proportionally to the new effective FLL so the wait remains adequate regardless of overclock level. The SH7305 datasheet specifies a maximum lock time of 16,384 FLL cycles (~2.5 ms at minimum FLL output).
+
+Level 5 (TURBO+) works differently: instead of incrementing FLF it sets `SELXM=1`, switching the FLL reference from XTAL/2 to XTAL, which doubles every downstream clock at the same FLF value. Before the frequency jump, `CS3WCR` is updated to the Ptune4 alpha-F5 SDRAM timing preset (`TRP=2, TRCD=2, A3CL=CL2, TRWL=2, TRC=2`) and an MRS command is issued to re-latch CAS latency in the SDRAM chip. On any transition back to a lower level, `CS3WCR` is fully restored to the OS default and MRS is re-issued.
 
 ### Simulation Speed (Frame Skipping)
 
@@ -152,12 +157,14 @@ Fall speeds are configured in `src/config.h` and control how often each particle
 |----------|-------------|-----------------|
 | Stone    | 1           | Every frame (fastest fall) |
 | Water    | 1           | Every frame (fast flow) |
+| Acid     | 1           | Every frame (fast flow, like water) |
 | Sand     | 2           | ~50% of frames |
 | Lava     | 2           | ~50% of frames (slower than water) |
 | Ice      | 2           | ~50% of frames (falls like sand) |
+| Steam    | 2           | ~50% of frames (rises rather than falls) |
 
 ## Future Enhancements
 
-- More particle types (oil, acid, fire, smoke, etc.)
+- More particle types (oil, fire, smoke, etc.)
 - Save/load simulation states
 - Color aging / weathering for particles
