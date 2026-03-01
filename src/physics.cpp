@@ -296,8 +296,8 @@ static void updateLava(int x, int y) {
     updatedSet(x, y);
     updatedSet(x + 1, y + 1);
   }
-  // Occasionally flow sideways
-  else if (xorshift32() % LAVA_FLOW_CHANCE == 0) {
+  // Occasionally flow sideways (power-of-2 mask — no software divide)
+  else if ((xorshift32() & (LAVA_FLOW_CHANCE - 1)) == 0) {
     bool tryLeftFirst = (xorshift32() & 1) == 0;
     int dir = tryLeftFirst ? -1 : 1;
     if (isEmpty(x + dir, y)) {
@@ -344,24 +344,21 @@ static void updatePlant(int x, int y) {
     if (hasWater) break;
   }
   
-  // If touching water, occasionally grow into adjacent empty spaces
-  if (hasWater && xorshift32() % PLANT_GROWTH_CHANCE == 0) {
-    // Try to grow in a random adjacent empty cell
-    int attempts = 0;
-    while (attempts < PLANT_GROWTH_ATTEMPTS) {
-      int dx = (xorshift32() % 3) - 1;  // -1, 0, or 1
-      int dy = (xorshift32() % 3) - 1;
-      if (dx == 0 && dy == 0) {
-        attempts++;
-        continue;
-      }
-      int nx = x + dx;
-      int ny = y + dy;
+  // If touching water, occasionally grow into an adjacent empty space.
+  // All % replaced with & (power-of-2 mask) to avoid software divides on SH4.
+  if (hasWater && (xorshift32() & (PLANT_GROWTH_CHANCE - 1)) == 0) {
+    // Pick from the 8 cardinal+diagonal neighbours using a lookup table indexed
+    // by the low 3 bits of the PRNG — no modulo, no dx==dy==0 guard needed.
+    static const int8_t growDx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    static const int8_t growDy[8] = { -1, -1, -1, 0, 0,  1, 1, 1 };
+    for (int attempt = 0; attempt < PLANT_GROWTH_ATTEMPTS; attempt++) {
+      int idx = (int)(xorshift32() & 0x7u);
+      int nx = x + growDx[idx];
+      int ny = y + growDy[idx];
       if (isEmpty(nx, ny)) {
         grid[ny][nx] = Particle::PLANT;
         break;
       }
-      attempts++;
     }
   }
 }

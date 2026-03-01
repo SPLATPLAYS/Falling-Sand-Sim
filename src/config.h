@@ -66,8 +66,8 @@ extern const char* const simSpeedModeNames[SIM_SPEED_MODE_MAX + 1];
 extern const int simSkipAmounts[SIM_SPEED_MODE_MAX + 1];
 
 // Simulation probabilities and limits
-constexpr int LAVA_FLOW_CHANCE = 3;        // 1 in 3 chance to flow sideways
-constexpr int PLANT_GROWTH_CHANCE = 10;    // 1 in 10 chance to grow per frame
+constexpr int LAVA_FLOW_CHANCE = 4;        // 1 in 4 chance to flow sideways (power-of-2 → bitwise AND replaces % on SH4)
+constexpr int PLANT_GROWTH_CHANCE = 8;     // 1 in 8 chance to grow per frame  (power-of-2 → bitwise AND replaces % on SH4)
 constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell for growth
 
 // FPS counter constants
@@ -94,6 +94,8 @@ static_assert((FALL_SPEED_SAND  & (FALL_SPEED_SAND  - 1)) == 0, "FALL_SPEED_SAND
 static_assert((FALL_SPEED_WATER & (FALL_SPEED_WATER - 1)) == 0, "FALL_SPEED_WATER must be a power of 2");
 static_assert((FALL_SPEED_LAVA  & (FALL_SPEED_LAVA  - 1)) == 0, "FALL_SPEED_LAVA must be a power of 2");
 static_assert((FALL_SPEED_ICE   & (FALL_SPEED_ICE   - 1)) == 0, "FALL_SPEED_ICE must be a power of 2");
+static_assert((LAVA_FLOW_CHANCE    & (LAVA_FLOW_CHANCE    - 1)) == 0, "LAVA_FLOW_CHANCE must be a power of 2");
+static_assert((PLANT_GROWTH_CHANCE & (PLANT_GROWTH_CHANCE - 1)) == 0, "PLANT_GROWTH_CHANCE must be a power of 2");
 
 // Coarse temperature grid (¼ resolution: 1 cell covers 4×4 fine cells)
 constexpr int TEMP_SCALE   = 4;
