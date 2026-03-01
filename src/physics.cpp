@@ -17,7 +17,7 @@ static bool shouldUpdate(Particle p) {
 // Propagate temperature: diffuse heat between coarse cells then re-inject
 // particle-sourced heat/cold.  The coarse grid is only 24×48 (1,152 cells)
 // so running every physics tick is negligible cost.
-static void propagateTemperature() {
+static ILRAM_FUNC void propagateTemperature() {
   // --- Step 1: Diffusion + ambient cooling ---
   // Run TEMP_DIFFUSION_PASSES passes so heat spreads TEMP_DIFFUSION_PASSES
   // coarse cells per tick — visibly flowing away from lava into neighbours.
