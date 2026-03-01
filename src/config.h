@@ -48,6 +48,11 @@ constexpr int SWATCH_SPACING = 20;
 constexpr int UI_START_X = 10;
 constexpr int PARTICLE_TYPE_COUNT = 8;
 
+// First grid row that falls inside the UI bar (pixels below this are UI, not simulation).
+// Equivalent to (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE — defined once to avoid
+// the magic expression being repeated across translation units.
+constexpr int GRID_UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
+
 // Brush size slider layout (placed after particle swatches in the UI bar)
 // Swatches occupy x = 10 to 10 + 8*20 = 170; slider starts at 172
 constexpr int BRUSH_SLIDER_DIGIT_X  = 172; // X of brush-size digit

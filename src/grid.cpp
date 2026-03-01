@@ -28,11 +28,9 @@ void initGrid() {
     }
   }
   
-  // Create bottom wall above the UI (UI starts at Y=176 pixels = grid row 88)
-  // Create wall at row 87 to keep particles above UI
-  const int UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
+  // Create bottom wall above the UI — keep particles above GRID_UI_BOUNDARY
   for (int x = 0; x < GRID_WIDTH; x++) {
-    grid[UI_BOUNDARY - 1][x] = Particle::WALL;
+    grid[GRID_UI_BOUNDARY - 1][x] = Particle::WALL;
     grid[GRID_HEIGHT - 1][x] = Particle::WALL;
   }
   

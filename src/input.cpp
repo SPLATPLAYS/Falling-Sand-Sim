@@ -21,11 +21,8 @@ bool tempViewEnabled = false;
 static void placeParticle(int gridX, int gridY) {
   if (!isValid(gridX, gridY)) return;
   
-  // Calculate UI boundary (UI starts at Y=176 pixels = grid row 88)
-  const int UI_BOUNDARY = (SCREEN_HEIGHT - UI_HEIGHT) / PIXEL_SIZE;
-  
   // Don't allow placing anything at or below the UI boundary
-  if (gridY >= UI_BOUNDARY) return;
+  if (gridY >= GRID_UI_BOUNDARY) return;
   
   // If erasing (placing AIR), allow erasing anything except the UI boundary wall
   if (selectedParticle == Particle::AIR) {
@@ -33,9 +30,9 @@ static void placeParticle(int gridX, int gridY) {
       for (int dx = -brushSize/2; dx <= brushSize/2; dx++) {
         int x = gridX + dx;
         int y = gridY + dy;
-        if (isValid(x, y) && y < UI_BOUNDARY) {
-          // Don't erase the UI boundary wall at row 87
-          if (y == UI_BOUNDARY - 1) continue;
+        if (isValid(x, y) && y < GRID_UI_BOUNDARY) {
+          // Don't erase the UI boundary wall at row GRID_UI_BOUNDARY-1
+          if (y == GRID_UI_BOUNDARY - 1) continue;
           grid[y][x] = Particle::AIR;
           tempSet(x, y, TEMP_AMBIENT);
         }
@@ -54,7 +51,7 @@ static void placeParticle(int gridX, int gridY) {
     for (int dx = -brushSize/2; dx <= brushSize/2; dx++) {
       int x = gridX + dx;
       int y = gridY + dy;
-      if (isValid(x, y) && y < UI_BOUNDARY) {
+      if (isValid(x, y) && y < GRID_UI_BOUNDARY) {
         // Skip walls unless placing wall
         if (grid[y][x] == Particle::WALL && selectedParticle != Particle::WALL) {
           continue;
