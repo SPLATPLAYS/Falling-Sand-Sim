@@ -42,11 +42,6 @@ static void placeParticle(int gridX, int gridY) {
     return;
   }
   
-  // Don't overwrite walls unless placing wall
-  if (grid[gridY][gridX] == Particle::WALL && selectedParticle != Particle::WALL) {
-    return;
-  }
-  
   // Place particles in brush area
   for (int dy = -brushSize/2; dy <= brushSize/2; dy++) {
     for (int dx = -brushSize/2; dx <= brushSize/2; dx++) {
