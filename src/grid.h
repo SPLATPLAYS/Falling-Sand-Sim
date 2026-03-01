@@ -15,6 +15,10 @@ extern Particle gridRest[GRID_ROWS_REST][GRID_WIDTH]; // regular RAM
 extern Particle *grid[GRID_HEIGHT];
 extern uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell (576 bytes vs 18 KB)
 extern uint8_t temperature[TEMP_GRID_H][TEMP_GRID_W]; // Coarse temperature grid (1,152 bytes vs 18 KB)
+// Dirty bitset: OR-accumulates updated flags across simulate() calls between renders.
+// drawGrid() uses this to skip unchanged cells, then clears it after each rendered frame.
+// initGrid() sets all bits so the very first drawGrid() paints everything.
+extern uint32_t dirty[GRID_HEIGHT][UPDATED_WORDS];
 
 // Coarse temperature accessors (fine-cell coordinates)
 inline uint8_t tempGet(int x, int y) {
@@ -30,6 +34,14 @@ inline bool updatedGet(int x, int y) {
 }
 inline void updatedSet(int x, int y) {
   updated[y][x >> 5] |= (1u << (x & 31));
+}
+
+// Dirty-bitset helpers (render-side dirty tracking)
+inline bool dirtyGet(int x, int y) {
+  return (dirty[y][x >> 5] >> (x & 31)) & 1u;
+}
+inline void dirtySet(int x, int y) {
+  dirty[y][x >> 5] |= (1u << (x & 31));
 }
 
 // Initialize the grid

@@ -555,4 +555,11 @@ ILRAM_FUNC void simulate() {
       }
     }
   }
+
+  // Accumulate this tick's changes into the render dirty bitset.
+  // dirty is OR-accumulated across multiple simulate() calls between rendered
+  // frames (frame-skip mode) and cleared by drawGrid() after each render.
+  for (int y = 0; y < GRID_HEIGHT; y++)
+    for (int w = 0; w < UPDATED_WORDS; w++)
+      dirty[y][w] |= updated[y][w];
 }

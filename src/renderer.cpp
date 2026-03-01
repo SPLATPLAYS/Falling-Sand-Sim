@@ -107,7 +107,12 @@ static void drawDigit(uint16_t* vram, int x, int y, int digit, uint16_t color, i
 static void drawFPS(uint16_t* vram) {
   int fps = static_cast<int>(currentFPS + 0.5f);
   if (fps > 99999) fps = 99999;
-  
+
+  // Erase the previous counter: max 5 digits × 6 px wide = 30 px, 7 px tall.
+  for (int row = FPS_DISPLAY_Y; row < FPS_DISPLAY_Y + 7; row++)
+    for (int col = FPS_DISPLAY_X; col < FPS_DISPLAY_X + 30; col++)
+      vram[row * lcdWidth + col] = COLOR_AIR;
+
   // Extract digits
   int tenthousands = fps / 10000;
   int thousands    = (fps / 1000) % 10;
@@ -500,25 +505,31 @@ ILRAM_FUNC void drawGrid(uint16_t* vram) {
     uint16_t* scanline0 = vram + screenY * lcdWidth;
     uint16_t* scanline1 = vram + (screenY + 1) * lcdWidth;
 
-    // Write the full first scanline before touching the second.
-    // Sequential writes into one contiguous buffer are far more cache-friendly
-    // than interleaving writes 768 bytes apart for every x column.
+    // Only repaint cells that changed since the last rendered frame.
+    // dirty bits are OR-accumulated by simulate(); cleared below after the loop.
     for (int x = 0; x < GRID_WIDTH; x++) {
+      if (!dirtyGet(x, y)) continue;
       uint16_t color = tempViewEnabled
         ? (grid[y][x] == Particle::WALL ? tempToColor(TEMP_AMBIENT) : tempToColor(tempGet(x, y)))
         : getParticleColorVaried(grid[y][x], x, y);
       int screenX = x * PIXEL_SIZE;
       scanline0[screenX]     = color;
       scanline0[screenX + 1] = color;
+      scanline1[screenX]     = color;
+      scanline1[screenX + 1] = color;
     }
-
-    // scanline1 is pixel-perfect identical to scanline0 — bulk-copy it.
-    // GRID_WIDTH * PIXEL_SIZE == SCREEN_WIDTH, so this covers the full row.
-    memcpy(scanline1, scanline0, (size_t)GRID_WIDTH * PIXEL_SIZE * sizeof(uint16_t));
   }
+
+  // Clear dirty flags now that every changed cell has been painted.
+  memset(dirty, 0, sizeof(dirty));
   
   // Draw UI - particle selector at bottom
   const int UI_Y = SCREEN_HEIGHT - UI_HEIGHT;
+
+  // Clear the entire UI bar to black each frame so the FPS counter, brush
+  // slider, and hint text never overdraw stale pixels from the previous frame.
+  for (int row = UI_Y; row < SCREEN_HEIGHT; row++)
+    memset(vram + row * lcdWidth, 0, (size_t)lcdWidth * sizeof(uint16_t));
   
   for (int i = 0; i < PARTICLE_TYPE_COUNT; i++) {
     uint16_t color = getParticleColor(PARTICLE_UI_ORDER[i]);

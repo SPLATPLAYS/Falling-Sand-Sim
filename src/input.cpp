@@ -35,6 +35,7 @@ static void placeParticle(int gridX, int gridY) {
           if (y == GRID_UI_BOUNDARY - 1) continue;
           grid[y][x] = Particle::AIR;
           tempSet(x, y, TEMP_AMBIENT);
+          dirtySet(x, y);
         }
       }
     }
@@ -58,6 +59,7 @@ static void placeParticle(int gridX, int gridY) {
         }
         grid[y][x] = selectedParticle;
         tempSet(x, y, getParticleTemperature(selectedParticle));
+        dirtySet(x, y);
       }
     }
   }
@@ -298,6 +300,7 @@ bool handleInput() {
       if (event.data.key.keyCode == KEYCODE_0 &&
           event.data.key.direction == KEY_PRESSED) {
         tempViewEnabled = !tempViewEnabled;
+        memset(dirty, 0xFF, sizeof(dirty)); // color mode changed — repaint every cell
       }
       // Exit with EXE key
       if (event.data.key.keyCode == KEYCODE_EXE && 

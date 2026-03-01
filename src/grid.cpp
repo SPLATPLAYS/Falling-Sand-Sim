@@ -10,6 +10,7 @@ Particle gridRest[GRID_ROWS_REST][GRID_WIDTH]; // remaining rows in regular RAM
 Particle *grid[GRID_HEIGHT];
 alignas(32) uint32_t updated[GRID_HEIGHT][UPDATED_WORDS]; // Bitset: 1 bit per cell
 alignas(32) uint8_t temperature[TEMP_GRID_H][TEMP_GRID_W]; // Coarse temperature grid (1,152 bytes)
+alignas(32) uint32_t dirty[GRID_HEIGHT][UPDATED_WORDS];    // Render dirty bitset (2,560 bytes)
 
 // Initialize the grid
 void initGrid() {
@@ -22,6 +23,7 @@ void initGrid() {
     grid[GRID_ROWS_X + GRID_ROWS_Y + y] = gridRest[y];
 
   memset(updated, 0, sizeof(updated));
+  memset(dirty, 0xFF, sizeof(dirty)); // force full repaint after clear
   memset(temperature, TEMP_AMBIENT, sizeof(temperature));
   for (int y = 0; y < GRID_HEIGHT; y++) {
     for (int x = 0; x < GRID_WIDTH; x++) {
