@@ -11,21 +11,34 @@ static volatile uint32_t* const CPG_FLLFRQ =
     reinterpret_cast<volatile uint32_t*>(0xA415003Cu); // FLL Frequency Register
 
 // ---------------------------------------------------------------------------
-// SH7305 BSC (Bus State Controller) — SDRAM timing on CS3 (Area 3)
-// BSC base address: 0xFEC10000 (P4 always-accessible mapping)
-// CS3WCR is at offset 0x2C within the BSC register block.
+// SH7305 BSC (Bus State Controller)
+// BSC P4 base: 0xFEC10000.  Register layout (from SH7305_CPG_BSC.h / Ftune3):
+//   +0x00: CMNCR
+//   +0x04: CS0BCR  +0x08: CS2BCR  +0x0C: CS3BCR  +0x10: CS4BCR
+//   +0x14: CS5aBCR +0x18: CS5bBCR +0x1C: CS6aBCR +0x20: CS6bBCR
+//   +0x24: CS0WCR  (NOR Flash ROM — Area 0)
+//   +0x28: CS2WCR
+//   +0x2C: CS3WCR  (SDRAM — Area 3)
+//
+// CS0WCR bit layout (big-endian 32-bit, from SH7305_CPG_BSC.h):
+//   [31:21] reserved
+//   [20]    BAS
+//   [19]    reserved
+//   [18:16] WW  — write-to-write idle cycles
+//   [15]    ADRS
+//   [14:13] reserved
+//   [12:11] SW  — strobe hold
+//   [10: 7] WR  — read wait count (0..11 encoding 0..18 cycles per WR_equivalent)
+//   [6]     WM
+//   [5:2]   reserved
+//   [1:0]   HW  — hold cycles
 //
 // CS3WCR SDRAM-mode bit layout (SH7730-compatible, big-endian 32-bit):
-//   [31:15] reserved
 //   [14:13] TRP   — row precharge time
-//   [12]    reserved
 //   [11:10] TRCD  — RAS-to-CAS delay
-//     [9]   reserved
 //     [8:7] A3CL  — CAS latency  (0b01=CL2, 0b10=CL3; 0b00 and 0b11 invalid)
-//     [6:5] reserved
 //     [4:3] TRWL  — write precharge time
-//     [2]   reserved
-//     [1:0] TRC   — row cycle time (smaller value = fewer wait cycles)
+//     [1:0] TRC   — row cycle time
 //
 // SDMR3 is a "ghost" address range where a write (any value) issues a
 // Mode Register Set (MRS) command to the SDRAM chip.  The CAS latency is
@@ -34,6 +47,8 @@ static volatile uint32_t* const CPG_FLLFRQ =
 //   0xFEC15060 → MRS with CL=3
 // This must be issued after every A3CL change so the chip stays in sync.
 // ---------------------------------------------------------------------------
+static volatile uint32_t* const BSC_CS0WCR =
+    reinterpret_cast<volatile uint32_t*>(0xFEC10024u);
 static volatile uint32_t* const BSC_CS3WCR =
     reinterpret_cast<volatile uint32_t*>(0xFEC1002Cu);
 static volatile uint16_t* const SDMR3_CL2 =
@@ -44,6 +59,7 @@ static volatile uint16_t* const SDMR3_CL3 =
 // Snapshot of the values the OS set at boot.  Safe to restore unconditionally.
 static uint32_t default_fllfrq = 0u;
 static uint32_t default_frqcr  = 0u;
+static uint32_t default_cs0wcr = 0u;
 static uint32_t default_cs3wcr = 0u;
 static bool     initialized    = false;
 
@@ -76,6 +92,23 @@ const char* const overclock_level_names[OC_LEVEL_MAX + 1] = {
 };
 
 // ---------------------------------------------------------------------------
+// Compute bus-clock frequency in units of 32768 Hz from raw CPG register values.
+// bphi_units = FLF × (SELXM+1) × (STC+1) / BFC_div
+//            = FLF × (SELXM+1) × (STC+1) >> (BFC_fld+1)
+//
+// FRQCR fields (confirmed from Ptune4 express.c and SH7305_CPG_BSC.h):
+//   bits[29:24] = STC  → PLL multiplier = STC+1
+//   bits[10: 8] = BFC  → BFC_div = 2^(BFC_fld+1)  (power of two → cheap right-shift)
+// ---------------------------------------------------------------------------
+static uint32_t compute_bphi_units(uint32_t fllfrq, uint32_t frqcr) {
+    uint32_t flf     = fllfrq & 0x3FFFu;
+    uint32_t selxm   = (fllfrq >> 14) & 1u;
+    uint32_t stc     = (frqcr  >> 24) & 0x3Fu;
+    uint32_t bfc_fld = (frqcr  >>  8) & 0x7u;
+    return (flf * (1u + selxm) * (stc + 1u)) >> (bfc_fld + 1u);
+}
+
+// ---------------------------------------------------------------------------
 // CS3WCR value for TURBO+ (SELXM=1, ~2× bus clock).
 // Mirrors the Ptune4 alpha-F5 preset for fx-CG50/CG100:
 //   TRP=2  → bits[14:13] = 0b10  (0x4000)
@@ -91,53 +124,26 @@ static const uint32_t CS3WCR_TURBO_PLUS = 0x4892u;
 // BSC helpers — called from oclock_apply(), not exposed in the header
 // ---------------------------------------------------------------------------
 
-// Apply the tightest safe SDRAM timing for the OS-default bus clock:
-//   • A3CL: reduce CL=3 → CL=2 if the OS left it at CL=3; issue MRS to sync chip.
-//   • TRC:  set to the minimum safe field value for the actual bus frequency,
-//           derived from Ptune4's raW_TRC default table (mem_test.h) with a
-//           5 % margin — replacing the previous fixed "TRC − 1" heuristic.
+// Apply the tightest safe BSC timing for the OS-default bus clock:
+//   • CS3WCR A3CL: reduce CL=3 → CL=2 if the OS left it at CL=3; issue MRS.
+//   • CS3WCR TRC:  set to the dynamic minimum safe for the stock bus clock.
+//
+// CS0WCR (ROM wait states) is intentionally NOT modified here.  The OS
+// default WR value is conservatively safe across all supported bus speeds;
+// modifying it requires cycle-accurate knowledge of the BFC divider encoding
+// which varies by model.  bsc_restore_default() guarantees CS0WCR always
+// returns to the OS value before any frequency change.
 //
 // IMPORTANT: must only be called when the CPU/bus clock is at the OS-default
-// frequency.  The memory bus scales linearly with the FLL; any overclock level
-// must call bsc_restore_default() before raising the clock.
-//
-// Ptune4 raW_TRC defaults and their meaning (mem_test.h):
-//   TRC field 0 (3 bus cyc): safe when Bphi <  50 MHz  (× 0.95 = 47.5 MHz)
-//   TRC field 1 (4 bus cyc): safe when Bphi <  80 MHz  (× 0.95 = 76.0 MHz)
-//   TRC field 2 (6 bus cyc): safe when Bphi < 120 MHz  (× 0.95 = 114.0 MHz)
-//   TRC field 3 (9 bus cyc): required  when Bphi ≥ 120 MHz × 0.95
-//
-// Bus frequency computation (no 64-bit arithmetic needed):
-//   Bphi = FLF × (SELXM+1) × (STC+1) × 32768 Hz / BFC_div
-//
-// FRQCR field layout (SH7305, confirmed from Ptune4 express.c):
-//   bits[29:24] = STC  → PLL multiplier = STC+1  (max 64)
-//   bits[22:20] = IFC divider field  (unused here)
-//   bits[10:8]  = BFC divider field  → BFC_div = 2^(field+1)
+// frequency.  The memory bus scales linearly with FLL; any overclock level
+// must call bsc_restore_default() BEFORE raising the clock.
 static void bsc_apply_fast() {
-    // -----------------------------------------------------------------------
-    // Step 1: compute the minimum safe TRC field for the stock bus clock.
-    //
-    // Work in units of 32768 Hz to keep all arithmetic in uint32_t:
-    //   bphi_units = FLF × (SELXM+1) × (STC+1) / BFC_div
-    //              = FLF × (SELXM+1) × (STC+1) >> (BFC_fld+1)
-    //
-    // Thresholds from Ptune4 raW_TRC (5 % margin, rounded up for safety):
-    //   47.5 MHz / 32768 Hz = 1449.7 → 1450
-    //   76.0 MHz / 32768 Hz = 2319.4 → 2320
-    //  114.0 MHz / 32768 Hz = 3478.9 → 3479
-    //
-    // Max bphi_units at realistic values (FLF=1023, SELXM=0, STC=7, BFC_div=4):
-    //   1023 × 1 × 8 >> 2 = 2046 — well within uint32_t.
-    // -----------------------------------------------------------------------
-    uint32_t flf     = default_fllfrq & 0x3FFFu;
-    uint32_t selxm   = (default_fllfrq >> 14) & 1u;
-    uint32_t stc     = (default_frqcr  >> 24) & 0x3Fu;  // PLL multiplier − 1
-    uint32_t bfc_fld = (default_frqcr  >>  8) & 0x7u;   // log2(BFC_div) − 1
+    // Compute stock bus frequency in 32768 Hz units for the TRC calculation.
+    uint32_t bphi_units = compute_bphi_units(default_fllfrq, default_frqcr);
 
-    // BFC_div is always a power of two → right-shift replaces the division.
-    uint32_t bphi_units = (flf * (1u + selxm) * (stc + 1u)) >> (bfc_fld + 1u);
-
+    // -----------------------------------------------------------------------
+    // CS3WCR — SDRAM timing (CAS latency + TRC).
+    // -----------------------------------------------------------------------
     uint32_t min_trc;
     if      (bphi_units >= 3479u) min_trc = 3u;  // ≥ 114 MHz → need 9-cycle TRC
     else if (bphi_units >= 2320u) min_trc = 2u;  // ≥  76 MHz → need 6-cycle TRC
@@ -147,8 +153,8 @@ static void bsc_apply_fast() {
     uint32_t wcr = default_cs3wcr;
 
     // -----------------------------------------------------------------------
-    // Step 2: CAS latency — reduce CL=3 → CL=2.
-    // A3CL encoding: 0b01=CL2, 0b10=CL3 (0b00 and 0b11 are reserved/invalid).
+    // CAS latency — reduce CL=3 → CL=2.
+    // A3CL encoding: 0b01=CL2, 0b10=CL3 (0b00 and 0b11 reserved/invalid).
     // -----------------------------------------------------------------------
     uint32_t a3cl = (wcr >> 7) & 0x3u;
     if (a3cl == 2u) {
@@ -161,7 +167,7 @@ static void bsc_apply_fast() {
     // Leave 0/3 (reserved) untouched rather than risk corrupting the controller.
 
     // -----------------------------------------------------------------------
-    // Step 3: TRC — tighten to the dynamic minimum.
+    // TRC — tighten to the dynamic minimum.
     // Only write if the OS value is looser than min_trc; never relax below it.
     // No MRS command needed — TRC only affects the BSC state machine, not
     // anything the SDRAM chip tracks internally.
@@ -175,8 +181,11 @@ static void bsc_apply_fast() {
 
 // Restore the OS-default BSC timing and re-issue MRS so the SDRAM chip
 // re-latches the original CAS latency.  Must be called before raising bus
-// frequency so the chip is always operating within its rated timing margins.
+// frequency so the chip always operates within its rated timing margins.
 static void bsc_restore_default() {
+    // Restore ROM wait states to OS default before bus clock changes.
+    *BSC_CS0WCR = default_cs0wcr;
+    // Restore SDRAM timing and re-latch CAS latency via MRS.
     *BSC_CS3WCR = default_cs3wcr;
     uint32_t a3cl = (default_cs3wcr >> 7) & 0x3u;
     if      (a3cl == 1u) *SDMR3_CL2 = 0;
@@ -211,6 +220,7 @@ void oclock_init() {
     // apply a non-default speed.
     default_frqcr  = *CPG_FRQCR;
     default_fllfrq = *CPG_FLLFRQ;
+    default_cs0wcr = *BSC_CS0WCR;
     default_cs3wcr = *BSC_CS3WCR;
     initialized    = true;
 }
@@ -242,14 +252,16 @@ void oclock_apply(int level) {
         // reference, doubling every downstream clock at the same FLF.
         // This mirrors the Ptune4 alpha-F5 preset (fx-CG50/CG100).
         //
-        // CS3WCR is set to alpha-F5 SDRAM timing before the frequency jump
-        // so the SDRAM is never accessed outside its rated margins.
+        // CS0WCR is left at the OS default value (restored by bsc_restore_default()).
+        // The OS default WR is conservatively safe even at 2× bus speed.
+
+        // CS3WCR to alpha-F5 SDRAM timing before the frequency jump.
         *BSC_CS3WCR = CS3WCR_TURBO_PLUS;
         *SDMR3_CL2 = 0;  // Re-latch CL=2 into the SDRAM chip (MRS command)
 
-        uint32_t base_flf = default_fllfrq & 0x3FFFu; // bits[13:0]
         // Clear bits [14:0] of default_fllfrq (SELXM + FLF), then set
         // SELXM=1 (bit 14) and restore the original FLF in bits [13:0].
+        uint32_t base_flf = default_fllfrq & 0x3FFFu;
         *CPG_FLLFRQ = (default_fllfrq & ~0x7FFFu) | (1u << 14) | base_flf;
         fll_lock_wait();
         return;
@@ -264,6 +276,8 @@ void oclock_apply(int level) {
     if (new_flf > 0x3FFFu)             new_flf  = 0x3FFFu;
 
     // Write new FLF, preserving all other FLLFRQ bits (SELXM, reserved).
+    // CS0WCR is not modified: the OS default WR is safe for the moderate
+    // frequency increases at levels 1-4.
     *CPG_FLLFRQ = (default_fllfrq & ~0x3FFFu) | new_flf;
     fll_lock_wait();
 }
