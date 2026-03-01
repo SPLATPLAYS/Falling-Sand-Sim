@@ -4,7 +4,8 @@
 #include <cstdint>
 
 // XorShift32 PRNG - fast and lightweight for embedded systems
-static uint32_t xorshift_state = 0x12345678;
+// State is defined once in random.cpp; all translation units share it.
+extern uint32_t xorshift_state;
 
 inline uint32_t xorshift32() {
   uint32_t x = xorshift_state;
