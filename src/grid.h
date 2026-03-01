@@ -6,7 +6,7 @@
 // Words per row for the updated bitset
 constexpr int UPDATED_WORDS = (GRID_WIDTH + 31) / 32;
 
-// Global grid split across on-chip X/Y RAM (rows 0-41 in X, 42-83 in Y, 84-95 in RAM)
+// Global grid split across on-chip X/Y RAM (rows 0-41 in X, 42-83 in Y, 84-127 in RAM)
 // Sub-arrays (do not access directly; use grid[y][x])
 extern Particle gridX[GRID_ROWS_X][GRID_WIDTH];    // .oc_mem.x.data
 extern Particle gridY[GRID_ROWS_Y][GRID_WIDTH];    // .oc_mem.y.data

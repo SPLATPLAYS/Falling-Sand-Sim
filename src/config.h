@@ -5,11 +5,11 @@
 
 // Screen dimensions
 constexpr int SCREEN_WIDTH = 320;
-constexpr int SCREEN_HEIGHT = 192;
+constexpr int SCREEN_HEIGHT = 256;
 
 // Simulation grid dimensions (scaled down for performance)
 constexpr int GRID_WIDTH = 160;
-constexpr int GRID_HEIGHT = 96;
+constexpr int GRID_HEIGHT = 128;
 constexpr int PIXEL_SIZE = 2; // Each cell is 2x2 pixels
 
 // Particle types
@@ -110,7 +110,7 @@ constexpr int TEMP_GRID_H  = GRID_HEIGHT / TEMP_SCALE;  // 24
 // Grid row split across on-chip X/Y RAM (4 KB per bank, 2 banks each = 8 KB each)
 // X RAM holds rows 0..41  (42 × 160 = 6,720 bytes < 8,192)
 // Y RAM holds rows 42..83 (42 × 160 = 6,720 bytes < 8,192)
-// Regular RAM holds rows 84..95 (12 × 160 = 1,920 bytes)
+// Regular RAM holds rows 84..127 (44 × 160 = 7,040 bytes)
 constexpr int GRID_ROWS_X    = 42;
 constexpr int GRID_ROWS_Y    = 42;
 constexpr int GRID_ROWS_REST = GRID_HEIGHT - GRID_ROWS_X - GRID_ROWS_Y; // 12
