@@ -520,12 +520,10 @@ ILRAM_FUNC void drawGrid(uint16_t* vram) {
   // Draw UI - particle selector at bottom
   const int UI_Y = SCREEN_HEIGHT - UI_HEIGHT;
   
-  Particle particles[] = {Particle::SAND, Particle::WATER, Particle::STONE, Particle::WALL, Particle::LAVA, Particle::PLANT, Particle::ICE, Particle::AIR};
-  
   for (int i = 0; i < PARTICLE_TYPE_COUNT; i++) {
-    uint16_t color = getParticleColor(particles[i]);
+    uint16_t color = getParticleColor(PARTICLE_UI_ORDER[i]);
     // Use bright pink for AIR in UI so it's visible
-    if (particles[i] == Particle::AIR) {
+    if (PARTICLE_UI_ORDER[i] == Particle::AIR) {
       color = COLOR_UI_AIR;
     }
     int x = UI_START_X + i * SWATCH_SPACING;
@@ -540,7 +538,7 @@ ILRAM_FUNC void drawGrid(uint16_t* vram) {
     }
     
     // Highlight selected particle
-    if (particles[i] == selectedParticle) {
+    if (PARTICLE_UI_ORDER[i] == selectedParticle) {
       // Draw border using direct scanline writes
       uint16_t* topBorder = vram + UI_Y * lcdWidth + x;
       uint16_t* bottomBorder = vram + (UI_Y + SWATCH_SIZE - 1) * lcdWidth + x;

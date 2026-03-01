@@ -3,6 +3,19 @@
 
 #include "config.h"
 
+// Ordered list of particle types shown in the UI selector bar.
+// Defined once here so renderer and input code stay in sync automatically.
+constexpr Particle PARTICLE_UI_ORDER[PARTICLE_TYPE_COUNT] = {
+  Particle::SAND,
+  Particle::WATER,
+  Particle::STONE,
+  Particle::WALL,
+  Particle::LAVA,
+  Particle::PLANT,
+  Particle::ICE,
+  Particle::AIR,
+};
+
 // Get color for particle type
 inline uint16_t getParticleColor(Particle p) {
   switch (p) {
