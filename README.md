@@ -1,6 +1,6 @@
 # Falling Sand Simulator
 
-A cellular automaton falling sand simulator for the Casio Classpad calculator!
+A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG series calculator!
 
 ## Features
 
@@ -18,19 +18,40 @@ A cellular automaton falling sand simulator for the Casio Classpad calculator!
 - **Adjustable brush size**: Sizes 1–9, default 3; controlled via a UI slider or the **+**/**−** keys (with key-hold repeat); persisted across sessions via MCS
 - **On-screen FPS counter**: 5×7 pixel font, up to 5 digits with leading-zero suppression, averaged over the last 30 physics frames
 - **Interactive UI bar**: Tap particle swatches to select type; visual white-border highlight shows the active selection; Air shown in bright pink for visibility
-- **Frame skipping**: Optional performance optimization — physics runs at full speed while rendering is throttled
-- **MCS persistence**: Brush size is automatically saved to and restored from calculator memory
+- **Start menu**: Title screen with PLAY, SETTINGS, and EXIT buttons; navigable by touch or keyboard
+- **Settings menu**: In-app settings screen with two sub-menus:
+  - **CPU Speed**: Overclock the SH7305 CPU through 5 levels (DEFAULT → LIGHT → MEDIUM → FAST → TURBO); live preview as you navigate; estimated speed percentage shown per level
+  - **Sim Speed**: Choose one of 5 simulation speed modes (NORMAL, X2, X3, X5, X9) controlling how many physics ticks run per rendered frame
+- **Overclock support**: FLL-based CPU frequency scaling from ~118 MHz (default) up to ~163 MHz (+38%); no BSC wait-state changes needed; safe register restore on exit
+- **Frame skipping**: Physics always runs at full speed; rendering is throttled according to the selected sim speed mode for a higher physics tick rate
+- **MCS persistence**: Brush size, CPU speed level, and sim speed mode are automatically saved to and restored from calculator memory (MCS folder `FSandSim`)
 - **Performance optimized**: 192×96 simulation grid with direct VRAM writes at 2×2 px per cell; hot functions placed in ILRAM; grid split across on-chip X/Y RAM
 
 ## Controls
 
+### Start Menu
+- **Touch**: Tap PLAY, SETTINGS, or EXIT buttons
+- **EXE**: Start the simulation (same as PLAY)
+- **CLEAR / Action bar ESC**: Exit the application
+
+### Settings Menu
+- **Up / Down**: Navigate between CPU SPEED and SIM SPEED rows
+- **EXE**: Enter the highlighted sub-menu
+- **CLEAR / Action bar ESC**: Return to the start menu
+
+### CPU Speed / Sim Speed Sub-Menus
+- **Up / Down**: Navigate levels (CPU Speed sub-menu applies the level immediately as a live preview)
+- **EXE**: Confirm and save the selection
+- **CLEAR / Action bar ESC**: Cancel and return to the settings menu
+
+### In-Game
 - **Touch screen**: Draw particles on the grid
 - **Bottom UI bar**: Tap a particle swatch to select that particle type
 - **Brush size slider**: Drag (or tap) the slider track in the UI bar to set brush size
 - **+ / − keys**: Increase / decrease brush size (also responds to key-hold)
 - **0 key**: Toggle the temperature heat-map overlay
 - **CLEAR (AC) key**: Clear the entire grid and reset to walls only
-- **EXE key / Action bar ESC**: Exit the simulator
+- **EXE key / Action bar ESC**: Return to the start menu
 
 ## How to Setup
 
@@ -59,8 +80,8 @@ Copy `dist/FallingSandSim.hh3` to the root of the calculator when connected in U
 - On-chip RAM layout: rows 0–41 in X RAM, rows 42–83 in Y RAM, rows 84–95 in regular RAM (fits within the 8 KB per bank limit)
 - ILRAM: `simulate()` and `drawGrid()` are placed in the SH7305's internal instruction RAM for faster fetch/execute
 - PRNG: XorShift32 for fast, lightweight random number generation
-- Brush size range: 1–9, default 3; saved/loaded via MCS folder `FSandSim` / variable `BrushSz`
-- FPS timing: `gettimeofday()` backed by TMU2 at Phi/16 on the SH7305, giving sub-microsecond resolution
+- MCS persistence: brush size (`BrushSz`), CPU overclock level (`OCLevel`), and sim speed mode (`SimSpd`) all saved/loaded under MCS folder `FSandSim`
+- FPS timing: `gettimeofday()` backed by TMU2 at Phi/16 on the SH7305, giving sub-microsecond resolution; when frame skipping is active the FPS counter reflects rendered frames per second (physics still runs at full tick rate)
 
 ### Temperature System
 
@@ -93,25 +114,35 @@ The UI-zone coarse rows are always pinned to ambient so heat cannot bleed behind
 
 **Heat-map overlay**: Press **0** to toggle a false-colour view where every cell is coloured by its coarse-tile temperature instead of its particle type (WALL cells show ambient; all others show the heat map).
 
-### Performance Optimization: Frame Skipping
+### CPU Overclock
 
-Frame skipping allows the physics simulation to run at full speed while reducing rendering overhead. This can significantly improve performance on the calculator.
+The overclock system adjusts the SH7305 FLL (Frequency-Lock Loop) multiplier register (`FLLFRQ`) to scale all downstream clocks proportionally. No PLL, bus-divider, or BSC wait-state registers are modified, so SDRAM/ROM timing remains conservative and compatible across devices.
 
-**How to enable:**
-1. Open `src/config.h`
-2. Set `FRAME_SKIP_ENABLED` to `true`
-3. Adjust `FRAME_SKIP_AMOUNT`:
-   - `0` = No skipping (max FPS, default)
-   - `1` = Skip 1 render frame (physics still runs every frame)
-   - `2` = Skip 2 render frames
-   - `3` = Skip 3 render frames
+The OS-default register values are snapshotted at startup (`oclock_init()`). Level 0 never writes to the hardware. On exit the hardware is left at the last applied level (restoring to default would require writing the register again, which is unnecessary given the OS resets clocks on app exit).
 
-**Benefits:**
-- Physics simulation continues at full speed regardless of rendering frequency
-- Input handling remains responsive every frame
-- Useful for complex simulations with many particles
+| Level | Name    | FLF delta | Est. CPU speed |
+|-------|---------|-----------|----------------|
+| 0     | DEFAULT | +0        | ~118 MHz       |
+| 1     | LIGHT   | +50       | ~124 MHz (+6%) |
+| 2     | MEDIUM  | +150      | ~135 MHz (+17%)|
+| 3     | FAST    | +235      | ~149 MHz (+26%)|
+| 4     | TURBO   | +345      | ~163 MHz (+38%)|
 
-**Note:** The FPS counter always shows *physics* frames per second (one count per `simulate()` call), regardless of whether frame skipping is enabled.
+After each `FLLFRQ` write a busy-wait of ~500 k iterations is performed to allow the FLL to relock (the SH7305 datasheet specifies a maximum lock time of 16,384 FLL cycles ≈ 2.5 ms at minimum FLL output).
+
+### Simulation Speed (Frame Skipping)
+
+The sim speed setting controls how many physics ticks execute between rendered frames. Physics input handling runs every tick regardless; only the VRAM write and `LCD_Refresh()` call are skipped.
+
+| Mode   | Skip amount | Physics ticks per frame |
+|--------|-------------|------------------------|
+| NORMAL | 0           | 1                       |
+| X2     | 1           | 2                       |
+| X3     | 2           | 3                       |
+| X5     | 4           | 5                       |
+| X9     | 8           | 9                       |
+
+The setting is persisted via MCS (`SimSpd` variable in folder `FSandSim`).
 
 ### Particle Fall Speeds
 
