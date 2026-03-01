@@ -33,6 +33,7 @@ void initGrid() {
   for (int x = 0; x < GRID_WIDTH; x++) {
     grid[GRID_UI_BOUNDARY - 1][x] = Particle::WALL;
   }
+
 }
 
 // Check if coordinates are valid

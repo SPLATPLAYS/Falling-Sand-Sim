@@ -4,11 +4,11 @@
 #include <cstdint>
 
 // Screen dimensions
-constexpr int SCREEN_WIDTH = 384;
+constexpr int SCREEN_WIDTH = 320;
 constexpr int SCREEN_HEIGHT = 192;
 
 // Simulation grid dimensions (scaled down for performance)
-constexpr int GRID_WIDTH = 192;
+constexpr int GRID_WIDTH = 160;
 constexpr int GRID_HEIGHT = 96;
 constexpr int PIXEL_SIZE = 2; // Each cell is 2x2 pixels
 
@@ -77,7 +77,7 @@ constexpr int PLANT_GROWTH_ATTEMPTS = 4;   // Max attempts to find empty cell fo
 
 // FPS counter constants
 constexpr int FPS_SAMPLE_COUNT = 30;       // Average FPS over last 30 frames
-constexpr int FPS_DISPLAY_X = 300;         // X position for FPS display
+constexpr int FPS_DISPLAY_X = 248;         // X position for FPS display
 constexpr int FPS_DISPLAY_Y = 2;           // Y position for FPS display
 
 // Note: When frame skipping is enabled, the displayed FPS represents rendered frames per second,
@@ -108,9 +108,9 @@ constexpr int TEMP_GRID_W  = GRID_WIDTH  / TEMP_SCALE;  // 48
 constexpr int TEMP_GRID_H  = GRID_HEIGHT / TEMP_SCALE;  // 24
 
 // Grid row split across on-chip X/Y RAM (4 KB per bank, 2 banks each = 8 KB each)
-// X RAM holds rows 0..41  (42 × 192 = 8,064 bytes < 8,192)
-// Y RAM holds rows 42..83 (42 × 192 = 8,064 bytes < 8,192)
-// Regular RAM holds rows 84..95 (12 × 192 = 2,304 bytes)
+// X RAM holds rows 0..41  (42 × 160 = 6,720 bytes < 8,192)
+// Y RAM holds rows 42..83 (42 × 160 = 6,720 bytes < 8,192)
+// Regular RAM holds rows 84..95 (12 × 160 = 1,920 bytes)
 constexpr int GRID_ROWS_X    = 42;
 constexpr int GRID_ROWS_Y    = 42;
 constexpr int GRID_ROWS_REST = GRID_HEIGHT - GRID_ROWS_X - GRID_ROWS_Y; // 12
