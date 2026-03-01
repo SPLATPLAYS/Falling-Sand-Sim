@@ -195,13 +195,23 @@ static void bsc_restore_default() {
 // ---------------------------------------------------------------------------
 // Busy-wait for FLL relock after a FLLFRQ write.
 // SH7305 data-sheet specifies a maximum FLL lock time of 16384 FLL cycles.
-// At the lowest FLL output (~6.5 MHz) that is ~2.5 ms.  We spin for ~500 k
-// iterations which is well over 2.5 ms at default CPU speed.  At overclocked
-// speed the iterations execute faster in wall-time but remain safely above the
-// minimum lock time even at the highest level.
+// At the lowest FLL output (~6.5 MHz) that is ~2.5 ms.  500,000 iterations
+// covers that at the OS-default CPU speed.  When the CPU is running faster
+// (higher FLL) each iteration takes less wall-time, so we scale the count
+// proportionally: iters = ceil(500000 × effective_flf / default_flf).
+//
+// 'effective_flf' is the FLL value that will be active for most of the spin:
+//   • Frequency increase (levels 1-5): pass the new effective FLL — the
+//     CPU transitions up immediately and spins at the higher speed.
+//   • Frequency decrease (restore): pass the OLD effective FLL — the CPU
+//     may still be at the higher speed early in the spin, so the old value
+//     is the conservative (larger) choice.
 // ---------------------------------------------------------------------------
-[[gnu::noinline]] static void fll_lock_wait() {
-    int i = 500000;
+[[gnu::noinline]] static void fll_lock_wait(uint32_t effective_flf) {
+    uint32_t base_flf = default_fllfrq & 0x3FFFu;
+    if (base_flf == 0u) base_flf = 1u; // guard against uninitialised state
+    // Ceiling division keeps the count at or above 500 k at default speed.
+    int i = (int)((500000u * effective_flf + base_flf - 1u) / base_flf);
     while (i > 0) {
         i--; /* spin — wait for FLL to relock */
         __asm__ volatile(""); // prevent optimisation of the loop body
@@ -235,8 +245,15 @@ void oclock_apply(int level) {
 
     if (level == OC_LEVEL_MIN) {
         // Full restore — write back the OS FLLFRQ and wait for lock.
+        // Read the current (overclock) FLLFRQ *before* overwriting so we
+        // can scale the spin by the old (higher) effective FLL — the CPU
+        // may still be running at that speed during the early part of the wait.
+        uint32_t old_fllfrq    = *CPG_FLLFRQ;
+        uint32_t old_flf       = old_fllfrq & 0x3FFFu;
+        uint32_t old_selxm     = (old_fllfrq >> 14) & 1u;
+        uint32_t old_eff_flf   = old_flf * (old_selxm + 1u);
         *CPG_FLLFRQ = default_fllfrq;
-        fll_lock_wait();
+        fll_lock_wait(old_eff_flf);
         // Back at default bus speed: safe to apply tighter SDRAM timing.
         bsc_apply_fast();
         return;
@@ -263,7 +280,8 @@ void oclock_apply(int level) {
         // SELXM=1 (bit 14) and restore the original FLF in bits [13:0].
         uint32_t base_flf = default_fllfrq & 0x3FFFu;
         *CPG_FLLFRQ = (default_fllfrq & ~0x7FFFu) | (1u << 14) | base_flf;
-        fll_lock_wait();
+        // SELXM=1 doubles the FLL output, so the effective FLL is 2×base_flf.
+        fll_lock_wait(base_flf * 2u);
         return;
     }
 
@@ -279,7 +297,8 @@ void oclock_apply(int level) {
     // CS0WCR is not modified: the OS default WR is safe for the moderate
     // frequency increases at levels 1-4.
     *CPG_FLLFRQ = (default_fllfrq & ~0x3FFFu) | new_flf;
-    fll_lock_wait();
+    // Scale the spin by new_flf: the CPU runs at new_flf speed after the write.
+    fll_lock_wait(new_flf);
 }
 
 int oclock_speed_percent(int level) {
