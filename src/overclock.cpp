@@ -10,9 +10,41 @@ static volatile uint32_t* const CPG_FRQCR  =
 static volatile uint32_t* const CPG_FLLFRQ =
     reinterpret_cast<volatile uint32_t*>(0xA415003Cu); // FLL Frequency Register
 
+// ---------------------------------------------------------------------------
+// SH7305 BSC (Bus State Controller) — SDRAM timing on CS3 (Area 3)
+// BSC base address: 0xFEC10000 (P4 always-accessible mapping)
+// CS3WCR is at offset 0x2C within the BSC register block.
+//
+// CS3WCR SDRAM-mode bit layout (SH7730-compatible, big-endian 32-bit):
+//   [31:15] reserved
+//   [14:13] TRP   — row precharge time
+//   [12]    reserved
+//   [11:10] TRCD  — RAS-to-CAS delay
+//     [9]   reserved
+//     [8:7] A3CL  — CAS latency  (0b01=CL2, 0b10=CL3; 0b00 and 0b11 invalid)
+//     [6:5] reserved
+//     [4:3] TRWL  — write precharge time
+//     [2]   reserved
+//     [1:0] TRC   — row cycle time (smaller value = fewer wait cycles)
+//
+// SDMR3 is a "ghost" address range where a write (any value) issues a
+// Mode Register Set (MRS) command to the SDRAM chip.  The CAS latency is
+// encoded in the upper address bits, so the target address selects CL:
+//   0xFEC15040 → MRS with CL=2
+//   0xFEC15060 → MRS with CL=3
+// This must be issued after every A3CL change so the chip stays in sync.
+// ---------------------------------------------------------------------------
+static volatile uint32_t* const BSC_CS3WCR =
+    reinterpret_cast<volatile uint32_t*>(0xFEC1002Cu);
+static volatile uint16_t* const SDMR3_CL2 =
+    reinterpret_cast<volatile uint16_t*>(0xFEC15040u);
+static volatile uint16_t* const SDMR3_CL3 =
+    reinterpret_cast<volatile uint16_t*>(0xFEC15060u);
+
 // Snapshot of the values the OS set at boot.  Safe to restore unconditionally.
 static uint32_t default_fllfrq = 0u;
 static uint32_t default_frqcr  = 0u;
+static uint32_t default_cs3wcr = 0u;
 static bool     initialized    = false;
 
 // ---------------------------------------------------------------------------
@@ -39,6 +71,52 @@ const char* const overclock_level_names[OC_LEVEL_MAX + 1] = {
     "FAST",
     "TURBO",
 };
+
+// ---------------------------------------------------------------------------
+// BSC helpers — called from oclock_apply(), not exposed in the header
+// ---------------------------------------------------------------------------
+
+// Apply reduced SDRAM timing (safe at OS-default bus clock speed):
+//   • A3CL: reduce from CL=3 to CL=2 if the OS set CL=3; issue MRS to sync chip.
+//   • TRC:  reduce row-cycle time by one step (floor at 0).
+// 
+// IMPORTANT: call only when the CPU/bus clock is at default frequency.
+// The SH7305 memory bus scales with the FLL, so at overclock levels the
+// OS-default (conservative) BSC timing must be restored to keep SDRAM stable.
+static void bsc_apply_fast() {
+    uint32_t wcr = default_cs3wcr;
+
+    // --- CAS latency ---
+    // A3CL encoding: 0b01=CL2, 0b10=CL3  (0b00 and 0b11 are reserved/invalid)
+    uint32_t a3cl = (wcr >> 7) & 0x3u;
+    if (a3cl == 2u) {
+        // CL=3 → CL=2: update CS3WCR then issue MRS so the SDRAM chip latches it.
+        wcr = (wcr & ~0x00000180u) | (1u << 7);
+        *BSC_CS3WCR = wcr;
+        *SDMR3_CL2 = 0;  // MRS address encodes CL=2; any write value works
+    }
+    // If A3CL is already 1 (CL=2), nothing to do.
+    // Leave 0/3 (invalid) untouched rather than risk corrupting the controller.
+
+    // --- TRC (row cycle time) ---
+    // Reduce by one step.  No MRS needed — TRC only affects the BSC state
+    // machine, not anything the SDRAM chip tracks internally.
+    uint32_t trc = wcr & 0x3u;
+    if (trc > 0u) {
+        wcr = (wcr & ~0x3u) | (trc - 1u);
+        *BSC_CS3WCR = wcr;
+    }
+}
+
+// Restore the OS-default BSC timing and re-issue MRS so the SDRAM chip
+// re-latches the original CAS latency.  Must be called before raising bus
+// frequency so the chip is always operating within its rated timing margins.
+static void bsc_restore_default() {
+    *BSC_CS3WCR = default_cs3wcr;
+    uint32_t a3cl = (default_cs3wcr >> 7) & 0x3u;
+    if      (a3cl == 1u) *SDMR3_CL2 = 0;
+    else if (a3cl == 2u) *SDMR3_CL3 = 0;
+}
 
 // ---------------------------------------------------------------------------
 // Busy-wait for FLL relock after a FLLFRQ write.
@@ -68,6 +146,7 @@ void oclock_init() {
     // apply a non-default speed.
     default_frqcr  = *CPG_FRQCR;
     default_fllfrq = *CPG_FLLFRQ;
+    default_cs3wcr = *BSC_CS3WCR;
     initialized    = true;
 }
 
@@ -83,8 +162,14 @@ void oclock_apply(int level) {
         // Full restore — write back the OS FLLFRQ and wait for lock.
         *CPG_FLLFRQ = default_fllfrq;
         fll_lock_wait();
+        // Back at default bus speed: safe to apply tighter SDRAM timing.
+        bsc_apply_fast();
         return;
     }
+
+    // Restore OS BSC timing before raising the bus clock so SDRAM margins
+    // remain within spec during and after the frequency transition.
+    bsc_restore_default();
 
     // Compute new FLF, clamped to the safe SELXM=0 ceiling of 1023.
     uint32_t base_flf = default_fllfrq & 0x3FFFu; // bits[13:0]
