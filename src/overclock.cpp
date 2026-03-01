@@ -56,12 +56,14 @@ static bool     initialized    = false;
 // but that requires also tuning BSC wait-states.  We stay firmly within the
 // SELXM=0 headroom for maximum compatibility and no BSC adjustments needed.
 // ---------------------------------------------------------------------------
+// Level 5 uses SELXM=1 rather than an FLF offset, so its entry is 0 (unused).
 static const int flf_increment[OC_LEVEL_MAX + 1] = {
     0,    // Level 0 — OS default   (no write)
     50,   // Level 1 — LIGHT        (+5.6% at FLF=900)
     150,  // Level 2 — MEDIUM       (+16.7%)
     235,  // Level 3 — FAST         (+26.1%)
     345,  // Level 4 — TURBO        (+38.3%)
+    0,    // Level 5 — TURBO+       handled via SELXM=1 (not an FLF delta)
 };
 
 const char* const overclock_level_names[OC_LEVEL_MAX + 1] = {
@@ -70,7 +72,20 @@ const char* const overclock_level_names[OC_LEVEL_MAX + 1] = {
     "MEDIUM",
     "FAST",
     "TURBO",
+    "TURBO+",
 };
+
+// ---------------------------------------------------------------------------
+// CS3WCR value for TURBO+ (SELXM=1, ~2× bus clock).
+// Mirrors the Ptune4 alpha-F5 preset for fx-CG50/CG100:
+//   TRP=2  → bits[14:13] = 0b10  (0x4000)
+//   TRCD=2 → bits[11:10] = 0b10  (0x0800)
+//   A3CL=1 → bits[ 8: 7] = 0b01  (0x0080)  ← CL=2
+//   TRWL=2 → bits[ 4: 3] = 0b10  (0x0010)
+//   TRC=2  → bits[ 1: 0] = 0b10  (0x0002)  ← 6 bus cycles
+// The SDRAM chip must also be updated via an MRS write to SDMR3_CL2.
+// ---------------------------------------------------------------------------
+static const uint32_t CS3WCR_TURBO_PLUS = 0x4892u;
 
 // ---------------------------------------------------------------------------
 // BSC helpers — called from oclock_apply(), not exposed in the header
@@ -171,7 +186,26 @@ void oclock_apply(int level) {
     // remain within spec during and after the frequency transition.
     bsc_restore_default();
 
-    // Compute new FLF, clamped to the safe SELXM=0 ceiling of 1023.
+    if (level == 5) {
+        // TURBO+: switch SELXM to 1, keeping the OS FLF value unchanged.
+        // SELXM=1 uses XTAL (32.768 kHz) instead of XTAL/2 as the FLL
+        // reference, doubling every downstream clock at the same FLF.
+        // This mirrors the Ptune4 alpha-F5 preset (fx-CG50/CG100).
+        //
+        // CS3WCR is set to alpha-F5 SDRAM timing before the frequency jump
+        // so the SDRAM is never accessed outside its rated margins.
+        *BSC_CS3WCR = CS3WCR_TURBO_PLUS;
+        *SDMR3_CL2 = 0;  // Re-latch CL=2 into the SDRAM chip (MRS command)
+
+        uint32_t base_flf = default_fllfrq & 0x3FFFu; // bits[13:0]
+        // Clear bits [14:0] of default_fllfrq (SELXM + FLF), then set
+        // SELXM=1 (bit 14) and restore the original FLF in bits [13:0].
+        *CPG_FLLFRQ = (default_fllfrq & ~0x7FFFu) | (1u << 14) | base_flf;
+        fll_lock_wait();
+        return;
+    }
+
+    // Levels 1-4: increment FLF within the SELXM=0 range.
     uint32_t base_flf = default_fllfrq & 0x3FFFu; // bits[13:0]
     uint32_t selxm    = (default_fllfrq >> 14) & 1u;
 
@@ -190,6 +224,13 @@ int oclock_speed_percent(int level) {
 
     uint32_t base_flf = default_fllfrq & 0x3FFFu;
     if (base_flf == 0u) return 100; // avoid divide by zero
+
+    if (level >= 5) {
+        // TURBO+: SELXM=1 doubles the effective FLL multiplier.  The
+        // effective FLF is 2×base_flf, so percentage = 200 regardless of
+        // the actual base_flf value.
+        return 200;
+    }
 
     uint32_t selxm   = (default_fllfrq >> 14) & 1u;
     uint32_t new_flf = base_flf + static_cast<uint32_t>(flf_increment[level]);
