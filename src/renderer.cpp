@@ -182,6 +182,7 @@ static void drawBrushSlider(uint16_t* vram) {
 // Start menu button bounds (updated by drawStartMenu)
 int startMenuPlayBtnX = 0,     startMenuPlayBtnY = 0,     startMenuPlayBtnW = 0,     startMenuPlayBtnH = 0;
 int startMenuSettingsBtnX = 0, startMenuSettingsBtnY = 0, startMenuSettingsBtnW = 0, startMenuSettingsBtnH = 0;
+int startMenuControlsBtnX = 0, startMenuControlsBtnY = 0, startMenuControlsBtnW = 0, startMenuControlsBtnH = 0;
 int startMenuExitBtnX = 0,     startMenuExitBtnY = 0,     startMenuExitBtnW = 0,     startMenuExitBtnH = 0;
 
 // ---------------------------------------------------------------------------
@@ -325,14 +326,17 @@ void drawStartMenu(uint16_t* vram) {
   const int charH      = 7 * scale;
   const int btnH       = charH + 8 * 2; // matches padY in drawMenuButton
 
-  int playY     = 70;
-  int settingsY = playY + btnH + btnSpacing;
-  int exitY     = lcdHeight - btnH - 7; // pinned to bottom with a small margin
+  int playY      = 70;
+  int settingsY  = playY + btnH + btnSpacing;
+  int controlsY  = settingsY + btnH + btnSpacing;
+  int exitY      = lcdHeight - btnH - 7; // pinned to bottom with a small margin
 
   drawMenuButton(vram, "PLAY",     scale, centreX, playY,
                  startMenuPlayBtnX,     startMenuPlayBtnY,     startMenuPlayBtnW,     startMenuPlayBtnH);
   drawMenuButton(vram, "SETTINGS", scale, centreX, settingsY,
                  startMenuSettingsBtnX, startMenuSettingsBtnY, startMenuSettingsBtnW, startMenuSettingsBtnH);
+  drawMenuButton(vram, "CONTROLS", scale, centreX, controlsY,
+                 startMenuControlsBtnX, startMenuControlsBtnY, startMenuControlsBtnW, startMenuControlsBtnH);
   drawMenuButton(vram, "EXIT",     scale, centreX, exitY,
                  startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     startMenuExitBtnH);
 }
@@ -364,6 +368,61 @@ static void drawRowHighlight(uint16_t* vram, int rowY, int rowH) {
     for (int px = 8; px < lcdWidth - 8; px++)
       if (px >= 0 && px < lcdWidth && py >= 0 && py < lcdHeight)
         vram[py * lcdWidth + px] = COLOR_WALL;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level settings menu
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Controls reference screen
+// ---------------------------------------------------------------------------
+
+void drawControlsScreen(uint16_t* vram) {
+  drawSettingsBackground(vram, "CONTROLS");
+
+  const int scale = 1;
+  const int lx    = 8;   // left column x
+  const int rx    = lcdWidth / 2 + 4; // right column x
+  int y           = 28;
+  const int lineH = 10;
+
+  // Column headers
+  drawText(vram, lx, y, "IN-GAME",    COLOR_SAND,    scale);
+  drawText(vram, rx, y, "MENUS",      COLOR_SAND,    scale);
+  y += lineH + 2;
+
+  // Left column: in-game controls
+  static const char* const leftLines[] = {
+    "TOUCH DRAW",
+    "UI BAR SELECT TYPE",
+    "SLIDER BRUSH SIZE",
+    "+ - BRUSH SIZE",
+    "0   TEMP VIEW",
+    "CLEAR RESET GRID",
+    "EXE  BACK TO MENU",
+  };
+  constexpr int leftCount = static_cast<int>(sizeof(leftLines) / sizeof(leftLines[0]));
+
+  // Right column: menu controls
+  static const char* const rightLines[] = {
+    "TOUCH SELECT",
+    "UP DOWN NAVIGATE",
+    "EXE  CONFIRM",
+    "CLEAR BACK",
+  };
+  constexpr int rightCount = static_cast<int>(sizeof(rightLines) / sizeof(rightLines[0]));
+
+  int maxLines = leftCount > rightCount ? leftCount : rightCount;
+  for (int i = 0; i < maxLines; i++) {
+    if (i < leftCount)  drawText(vram, lx, y, leftLines[i],  COLOR_STONE, scale);
+    if (i < rightCount) drawText(vram, rx, y, rightLines[i], COLOR_STONE, scale);
+    y += lineH;
+  }
+
+  // Footer
+  const char* back = "EXE OR CLEAR   BACK";
+  drawText(vram, lcdWidth / 2 - textPixelWidth(back, 1) / 2, lcdHeight - 10, back, COLOR_WALL, 1);
 }
 
 // ---------------------------------------------------------------------------

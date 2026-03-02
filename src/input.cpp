@@ -77,6 +77,7 @@ int handleStartMenuInput() {
 
       if (hit(startMenuPlayBtnX,     startMenuPlayBtnY,     startMenuPlayBtnW,     startMenuPlayBtnH))     return 1;
       if (hit(startMenuSettingsBtnX, startMenuSettingsBtnY, startMenuSettingsBtnW, startMenuSettingsBtnH)) return 2;
+      if (hit(startMenuControlsBtnX, startMenuControlsBtnY, startMenuControlsBtnW, startMenuControlsBtnH)) return 3;
       if (hit(startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     startMenuExitBtnH))     return -1;
     } else if (event.type == EVENT_KEY) {
       if (event.data.key.direction == KEY_PRESSED) {
@@ -89,6 +90,38 @@ int handleStartMenuInput() {
     memset(&event, 0, sizeof(event));
   }
   return 0;
+}
+
+// Handle controls screen input.
+// Returns -1 : EXE / CLEAR / ESC (back to menu)   0 : waiting
+// Touch events are intentionally ignored here — they would fire continuously
+// while the stylus is held and cause immediate re-entry into the controls screen.
+int handleControlsInput() {
+  struct Input_Event event;
+  memset(&event, 0, sizeof(event));
+
+  while (GetInput(&event, 0, 0x10) == 0 && event.type != EVENT_NONE) {
+    if (event.type == EVENT_KEY) {
+      if (event.data.key.direction == KEY_PRESSED) {
+        if (event.data.key.keyCode == KEYCODE_EXE ||
+            event.data.key.keyCode == KEYCODE_POWER_CLEAR) {
+          return -1;
+        }
+      }
+    } else if (event.type == EVENT_ACTBAR_ESC) {
+      return -1;
+    }
+    memset(&event, 0, sizeof(event));
+  }
+  return 0;
+}
+
+// Drain all pending input events.
+void flushInputEvents() {
+  struct Input_Event event;
+  memset(&event, 0, sizeof(event));
+  while (GetInput(&event, 0, 0x10) == 0 && event.type != EVENT_NONE)
+    memset(&event, 0, sizeof(event));
 }
 
 // Handle top-level settings menu input.

@@ -18,11 +18,12 @@ void updateFPS();
 ILRAM_FUNC void drawGrid(uint16_t* vram);
 
 // Start menu button bounds (updated by drawStartMenu on every call)
-extern int startMenuPlayBtnX,     startMenuPlayBtnY,     startMenuPlayBtnW,     startMenuPlayBtnH;
-extern int startMenuSettingsBtnX, startMenuSettingsBtnY, startMenuSettingsBtnW, startMenuSettingsBtnH;
-extern int startMenuExitBtnX,     startMenuExitBtnY,     startMenuExitBtnW,     startMenuExitBtnH;
+extern int startMenuPlayBtnX,      startMenuPlayBtnY,      startMenuPlayBtnW,      startMenuPlayBtnH;
+extern int startMenuSettingsBtnX,  startMenuSettingsBtnY,  startMenuSettingsBtnW,  startMenuSettingsBtnH;
+extern int startMenuControlsBtnX,  startMenuControlsBtnY,  startMenuControlsBtnW,  startMenuControlsBtnH;
+extern int startMenuExitBtnX,      startMenuExitBtnY,      startMenuExitBtnW,      startMenuExitBtnH;
 
-// Draw the start menu (title + PLAY / SETTINGS / EXIT buttons)
+// Draw the start menu (title + PLAY / SETTINGS / CONTROLS / EXIT buttons)
 void drawStartMenu(uint16_t* vram);
 
 // Draw the top-level settings menu (CPU SPEED / SIM SPEED rows).
@@ -34,5 +35,8 @@ void drawOCScreen(uint16_t* vram, int selectedLevel);
 
 // Draw the simulation speed sub-menu.
 void drawSimSpeedScreen(uint16_t* vram, int selectedMode);
+
+// Draw the controls reference screen.
+void drawControlsScreen(uint16_t* vram);
 
 #endif // RENDERER_H

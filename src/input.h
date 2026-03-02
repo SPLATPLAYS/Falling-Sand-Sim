@@ -18,9 +18,18 @@ bool handleInput();
 // Handle start-menu input.
 // Returns  1 : PLAY pressed  (start game)
 //          2 : SETTINGS pressed
+//          3 : CONTROLS pressed
 //         -1 : EXIT pressed / app-level exit requested
 //          0 : no relevant event yet
 int handleStartMenuInput();
+
+// Handle controls screen input.
+// Returns -1 : EXE / CLEAR / ESC (back to menu)   0 : waiting
+int handleControlsInput();
+
+// Drain all pending input events (call before entering a new screen to avoid
+// carrying over touch/key events from the previous screen).
+void flushInputEvents();
 
 // Handle top-level settings menu input.
 // 'selectedItem' cycles over {0=CPU SPEED, 1=SIM SPEED}.

@@ -120,6 +120,18 @@ int main(int argc, char **argv, char **envp) {
             inSettings = false;
           }
         }
+      } else if (result == 3) {
+        // --- Controls reference screen ---
+        flushInputEvents(); // discard the button-press touch that got us here
+        bool inControls = true;
+        while (inControls) {
+          uint16_t *cv = (uint16_t*)LCD_GetVRAMAddress();
+          drawControlsScreen(cv);
+          LCD_Refresh();
+          if (handleControlsInput() == -1) {
+            inControls = false;
+          }
+        }
       } else if (result == -1) {
         appRunning = false; // EXIT chosen in start menu — quit app
         inMenu = false;
