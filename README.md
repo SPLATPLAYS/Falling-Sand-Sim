@@ -4,14 +4,15 @@ A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG serie
 
 ## Features
 
-- **Multiple particle types**: Sand, Water, Stone, Wall, Lava, Plant, Ice, Steam, Acid, and Air (eraser)
+- **Multiple particle types**: Sand, Water, Stone, Wall, Lava, Fire, Plant, Ice, Steam, Acid, and Air (eraser)
 - **Realistic physics**: Particles fall under gravity with different behaviors
   - Sand: Falls and settles in piles; displaces water; sustained heat converts it to stone
   - Water: Falls and flows sideways in a randomized direction; freezes to ice when cold; evaporates to steam when hot
   - Stone: Falls straight down, no sideways movement; melts back to lava at extreme heat
   - Wall: Static, used to build structures; cannot be displaced or overwritten
-  - Lava: Flows like water but slower; converts adjacent sand→stone, evaporates adjacent water→steam, melts adjacent ice to water, and burns adjacent plants→steam; isolated lava slowly solidifies into stone; continuous heat source
-  - Plant: Static; grows into adjacent empty cells when touching water (1-in-8 chance per frame); burns to air when adjacent to lava or under sustained heat
+  - Lava: Flows like water but slower; converts adjacent sand→stone, evaporates adjacent water→steam, melts adjacent ice to water, and burns adjacent plants→steam; occasionally emits fire sparks directly above; isolated lava slowly solidifies into stone; continuous heat source
+  - Fire: Rises upward and drifts sideways; ignites adjacent plant cells (1-in-8 chance per update); water quenches fire — both cells become steam; burns out probabilistically into steam or air (1-in-16 chance per update); created by lava emitting sparks
+  - Plant: Static; grows into adjacent empty cells when touching water (1-in-8 chance per frame); burns to air when adjacent to lava, fire, or under sustained heat
   - Ice: Falls like sand and can displace water; pins surrounding temperature to near-freezing, converting nearby water to ice; melts to water when warm
   - Steam: Rises upward and drifts sideways; condenses back to water when its coarse tile cools below a threshold; created by lava contacting water or by water evaporation
   - Acid: Flows like water; dissolves Sand, Stone, and Plant (→ air) and Ice (→ water) on contact with a 1-in-4 chance per neighbour per tick; finite — also consumed by reactions with a 1-in-4 chance
@@ -20,7 +21,8 @@ A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG serie
 - **Adjustable brush size**: Sizes 1–9, default 3; controlled via a UI slider or the **+**/**−** keys (with key-hold repeat); persisted across sessions via MCS
 - **On-screen FPS counter**: 5×7 pixel font, up to 5 digits with leading-zero suppression, averaged over the last 30 physics frames
 - **Interactive UI bar**: Tap particle swatches to select type; visual white-border highlight shows the active selection; Air shown in bright pink for visibility
-- **Start menu**: Title screen with PLAY, SETTINGS, and EXIT buttons; navigable by touch or keyboard
+- **Start menu**: Title screen with PLAY, SETTINGS, CONTROLS, and EXIT buttons; navigable by touch or keyboard
+- **Controls screen**: In-app reference screen listing all in-game and menu controls, accessible from the start menu
 - **Settings menu**: In-app settings screen with two sub-menus:
   - **CPU Speed**: Overclock the SH7305 CPU through 6 levels (DEFAULT → LIGHT → MEDIUM → FAST → TURBO → TURBO+); live preview as you navigate; estimated speed percentage shown per level
   - **Sim Speed**: Choose one of 5 simulation speed modes (NORMAL, X2, X3, X5, X9) controlling how many physics ticks run per rendered frame
@@ -32,7 +34,7 @@ A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG serie
 ## Controls
 
 ### Start Menu
-- **Touch**: Tap PLAY, SETTINGS, or EXIT buttons
+- **Touch**: Tap PLAY, SETTINGS, CONTROLS, or EXIT buttons
 - **EXE**: Start the simulation (same as PLAY)
 - **CLEAR / Action bar ESC**: Exit the application
 
@@ -40,6 +42,9 @@ A cellular automaton falling sand simulator for the Casio ClassPad / fx-CG serie
 - **Up / Down**: Navigate between CPU SPEED and SIM SPEED rows
 - **EXE**: Enter the highlighted sub-menu
 - **CLEAR / Action bar ESC**: Return to the start menu
+
+### Controls Screen
+- **EXE / CLEAR / Action bar ESC**: Return to the start menu
 
 ### CPU Speed / Sim Speed Sub-Menus
 - **Up / Down**: Navigate levels (CPU Speed sub-menu applies the level immediately as a live preview)
@@ -118,7 +123,7 @@ The UI-zone coarse rows are always pinned to ambient so heat cannot bleed behind
 
 ### CPU Overclock
 
-The overclock system adjusts the SH7305 FLL (Frequency-Lock Loop) multiplier register (`FLLFRQ`) to scale all downstream clocks proportionally. No PLL, bus-divider, or BSC wait-state registers are modified, so SDRAM/ROM timing remains conservative and compatible across devices.
+The overclock system adjusts the SH7305 FLL (Frequency-Lock Loop) multiplier register (`FLLFRQ`) to scale all downstream clocks proportionally. For levels 0–4, no PLL, bus-divider, or BSC wait-state registers are modified, so SDRAM/ROM timing remains conservative and compatible across devices. Level 5 (TURBO+) is the exception: it sets `SELXM=1` to double the FLL reference clock and additionally updates `CS3WCR` to the Ptune4 alpha-F5 SDRAM timing preset to keep SDRAM stable at the doubled bus clock speed.
 
 The OS-default register values are snapshotted at startup (`oclock_init()`). Level 0 never writes to the hardware. On exit the hardware is left at the last applied level (restoring to default would require writing the register again, which is unnecessary given the OS resets clocks on app exit).
 
@@ -162,9 +167,10 @@ Fall speeds are configured in `src/config.h` and control how often each particle
 | Lava     | 2           | ~50% of frames (slower than water) |
 | Ice      | 2           | ~50% of frames (falls like sand) |
 | Steam    | 2           | ~50% of frames (rises rather than falls) |
+| Fire     | 2           | ~50% of frames (rises rather than falls) |
 
 ## Future Enhancements
 
-- More particle types (oil, fire, smoke, etc.)
+- More particle types (oil, smoke, etc.)
 - Save/load simulation states
 - Color aging / weathering for particles
